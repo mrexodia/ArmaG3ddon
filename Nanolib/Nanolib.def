@@ -1,0 +1,5 @@
+LIBRARY "Nanolib"
+
+EXPORTS
+	DoNanomites  @1
+	Populate	 @2

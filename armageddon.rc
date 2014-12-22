@@ -1,0 +1,213 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include "afxres.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// English (United States) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+IDI_SW                  ICON                    "favicon.ico"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_MAINDIALOG DIALOGEX 0, 0, 460, 306
+STYLE DS_SETFONT | DS_3DLOOK | DS_CENTER | WS_MINIMIZEBOX | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
+EXSTYLE WS_EX_ACCEPTFILES
+CAPTION "ArmaGeddon v2.2 for WinXP (32-bit final)"
+FONT 9, "Tahoma", 400, 0, 0x0
+BEGIN
+    DEFPUSHBUTTON   "",IDC_OPEN,6,6,88,47,BS_BITMAP | BS_CENTER | BS_VCENTER
+    GROUPBOX        "Options",IDG_INIFILE,100,2,72,51
+    PUSHBUTTON      "Load *.ini",IDC_LOADINI,107,12,59,12,WS_GROUP
+    PUSHBUTTON      "Save *.ini",IDC_SAVEINI,107,25,59,12
+    PUSHBUTTON      "Cmdline",IDC_COMMAND,107,38,59,12
+    GROUPBOX        "Nanomites",IDG_NANOMITES,5,54,167,69
+    CONTROL         "Analyze (Nanomites Fixer)",IDC_ANALYZENF,"Button",BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,14,64,151,12
+    CONTROL         "Analyze (Nanomites Static Dump)",IDC_ANALYZEST,"Button",BS_AUTORADIOBUTTON | WS_TABSTOP,14,78,151,12
+    CONTROL         "Log (Nanomites Dynamic Process)",IDC_ANALYZELOG,"Button",BS_AUTORADIOBUTTON | WS_TABSTOP,14,92,151,12
+    PUSHBUTTON      "Load *.anf",IDC_LOADNANF,9,108,57,12
+    PUSHBUTTON      "Patch Dump",IDC_RESOLVE,69,108,57,12
+    PUSHBUTTON      "Viewer",IDC_NANOVIEW,129,108,37,12
+    CONTROL         "Redirect CS",IDC_CODESPLICE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,5,126,82,12
+    CONTROL         "Minimize size",IDC_MINIMIZE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,91,126,81,12
+    CONTROL         "Dump .pdata",IDC_DUMPPDATA,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,5,139,82,12
+    CONTROL         "OpenMutex",IDC_OPENMUTEX,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,91,139,81,12
+    CONTROL         "Ignore 2nd .text",IDC_IGNORE2NDTEXT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,5,152,82,12
+    CONTROL         "Bypass 2nd .text",IDC_BYPASS2NDTEXT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,91,152,81,12
+    CONTROL         "Security.dll dump",IDC_SECURITYDUMP,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,5,165,82,12
+    CONTROL         "Security.dll load",IDC_SECURITYLOAD,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,91,165,81,12
+    GROUPBOX        "Detach",IDG_DETACH,5,178,100,40
+    CONTROL         "DebugBlocker",IDC_DB,"Button",BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,10,188,92,12
+    CONTROL         "CopyMemII",IDC_CM2,"Button",BS_AUTORADIOBUTTON | WS_TABSTOP,10,202,92,12
+    GROUPBOX        "Log",IDG_LOGFILE,112,178,60,40
+    PUSHBUTTON      "Save",IDC_SAVELOG,121,188,42,12,WS_GROUP
+    PUSHBUTTON      "Clear",IDC_CLEARLOG,121,203,42,12
+    GROUPBOX        "Hardware Fingerprint",IDG_FINGERPRINT,5,221,123,45
+    LTEXT           "Standard:",IDL_STANDARD,9,234,52,10
+    EDITTEXT        IDC_STANDARD,65,233,58,12,ES_AUTOHSCROLL | WS_GROUP
+    LTEXT           "Enhanced:",IDL_ENHANCED,9,250,52,10
+    EDITTEXT        IDC_ENHANCED,65,249,58,12,ES_AUTOHSCROLL
+    PUSHBUTTON      "",IDC_REFRESH,132,225,40,41,BS_BITMAP | BS_CENTER | BS_VCENTER
+    PUSHBUTTON      "",IDC_HELP,5,272,26,26,BS_BITMAP | BS_CENTER | BS_VCENTER
+    PUSHBUTTON      "",IDC_ABOUT,35,272,137,26,BS_BITMAP | BS_CENTER | BS_VCENTER
+    GROUPBOX        "LOG",IDG_LOG,175,2,282,298,WS_GROUP
+    CONTROL         "",IDC_LIST1,"SysListView32",LVS_REPORT | LVS_SHOWSELALWAYS | LVS_ALIGNLEFT | LVS_NOCOLUMNHEADER | LVS_NOSORTHEADER | WS_BORDER,178,13,276,285
+END
+
+IDD_ABOUT DIALOGEX 0, 0, 259, 236
+STYLE DS_SYSMODAL | DS_SETFONT | DS_MODALFRAME | DS_SETFOREGROUND | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION
+EXSTYLE WS_EX_TOPMOST
+CAPTION "About"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    PUSHBUTTON      "",IDC_ABOUTBMP,7,3,245,48,BS_BITMAP | BS_CENTER | BS_VCENTER | NOT WS_TABSTOP
+    GROUPBOX        "Credits",IDG_CREDITS,7,53,245,160
+    LTEXT           "",IDL_TEXTA,14,64,231,137
+    DEFPUSHBUTTON   "OK",IDOK,103,219,50,14
+END
+
+IDD_CMDLINE DIALOGEX 0, 0, 259, 127
+STYLE DS_SYSMODAL | DS_SETFONT | DS_MODALFRAME | DS_SETFOREGROUND | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION
+EXSTYLE WS_EX_TOPMOST
+CAPTION "CommandLine"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "OK",IDOK,104,110,50,14
+    LTEXT           "Enter your commandline argument below:",IDC_STATIC,10,7,240,11
+    EDITTEXT        IDC_CMDARGUE,4,21,251,77,ES_MULTILINE | ES_AUTOHSCROLL | WS_VSCROLL | WS_HSCROLL
+END
+
+IDD_DIALOGLIST DIALOGEX 0, 0, 309, 136
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | DS_CENTER | WS_POPUP | WS_CAPTION
+CAPTION "NanoViewer"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "OK",IDOK,127,117,50,14
+    CONTROL         "",IDC_LISTNANO,"SysListView32",LVS_REPORT | LVS_ALIGNLEFT | WS_BORDER | WS_TABSTOP,7,7,295,106
+END
+
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\r\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#include ""afxres.h""\r\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Bitmap
+//
+
+IDB_OPEN                BITMAP                  "Armadillo.bmp"
+IDB_HELP                BITMAP                  "Help-Question-Mark.bmp"
+IDB_REFRESH             BITMAP                  "refresh.bmp"
+IDB_OPENGRAY            BITMAP                  "Armadillo_gray.bmp"
+IDB_CREDIT              BITMAP                  "Armageddon_small.bmp"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO
+BEGIN
+    IDD_MAINDIALOG, DIALOG
+    BEGIN
+        BOTTOMMARGIN, 302
+    END
+
+    IDD_ABOUT, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 252
+        BOTTOMMARGIN, 233
+    END
+
+    IDD_CMDLINE, DIALOG
+    BEGIN
+        BOTTOMMARGIN, 124
+    END
+
+    IDD_DIALOGLIST, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 302
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 131
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Menu
+//
+
+IDR_CONTEXT MENU
+BEGIN
+    POPUP "Context"
+    BEGIN
+        MENUITEM "Select All",                  IDD_SELECTALL
+        MENUITEM "Copy",                        IDD_COPY
+        MENUITEM "Clear All",                   IDD_CLEARALL
+    END
+END
+
+#endif    // English (United States) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+

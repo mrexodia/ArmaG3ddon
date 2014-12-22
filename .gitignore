@@ -1,0 +1,6 @@
+*.suo
+*.sdf
+ipch/
+Release/
+*.opensdf
+Debug/
