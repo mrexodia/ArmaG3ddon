@@ -748,52 +748,25 @@ BYTE	*Target = 0;
 
 BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam)
 {
-	char title[80] = { 0 };
-	char compt[80] = { 0 };
-	char *CompName = 0;
+	char title[80];
+	char compt[80];
 
-	if (hwnd != NULL)
+	GetWindowText(hwnd, title, sizeof(title));
+	strcpy(compt, title);
+	strupr(compt);
+	if (strstr(compt, "ARMA") ||
+		strstr(compt, "@ARM@"))
 	{
-		GetWindowText(hwnd, title, sizeof(title));
-		if (title > " ");
-		{
-			memcpy(&compt, title, sizeof(title));
-			CompName = strupr((char *)compt);
-			if ((strnicmp((const char *)CompName, "@ARMA", 5) == 0 ||
-				strnicmp((const char *)CompName, "@ARM@", 5) == 0 ||
-				strnicmp((const char *)CompName, "ARMA", 4) == 0))
-			{
-				sprintf(b, "EnumWindows: %s", title);
-				lvi.pszText = (LPSTR)b;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				memset(&title, 0, sizeof(title));
-				SetWindowText(hwnd, title);
-			}
-			else
-			{
-				if (strstr(CompName, "@ARMA") ||
-					strstr(CompName, "@ARM@") ||
-					strstr(CompName, "ARMA"))
-				{
-					sprintf(b, "EnumWindows: %s", title);
-					lvi.pszText = (LPSTR)b;
-					lvi.iItem = numitems;
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
-					memset(&title, 0, sizeof(title));
-					SetWindowText(hwnd, title);
-				}
-			}
-		}
-		return TRUE;
+		sprintf(b, "EnumWindows: %s", title);
+		lvi.pszText = (LPSTR)b;
+		lvi.iItem = numitems;
+		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
+		numitems++;
+		SetWindowText(hwnd, "");
 	}
-	else
-	{
-		return FALSE;
-	}
+	return TRUE;
 }
+
 /* display application information messages */
 void MessageBoxInformation(char *text)
 {
