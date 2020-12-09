@@ -3362,13 +3362,13 @@ void SaveLogfile(void)
 	numitems++;
 	if (iStatus > 0)
 	{
+		lvi.pszText = sztempbuffer;
+		lvi.cchTextMax = sizeof(sztempbuffer) - 2;
 		for (i = 0; i < iStatus; i++)
 		{
-			memset(ibuf, 0, sizeof(ibuf));
-			memset(lbuf, 0, sizeof(lbuf));
-			ListView_GetItemText(hwndIDLISTVIEW, i, 0, ibuf, sizeof(ibuf));
-			sprintf(lbuf, "%s\r\n", ibuf);
-			WriteFile(hFile2, (LPCVOID)lbuf, strlen(lbuf), &dwWritten, NULL);
+			int len = SendMessage(hwndIDLISTVIEW, LVM_GETITEMTEXT, i, (LPARAM)&lvi);
+			strcpy(sztempbuffer + len, "\r\n");
+			WriteFile(hFile2, (LPCVOID)sztempbuffer, len + 2, &dwWritten, NULL);
 		}
 	}
 	SetEndOfFile(hFile2);
