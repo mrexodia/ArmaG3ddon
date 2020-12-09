@@ -10968,8 +10968,8 @@ unsigned __stdcall RunExe(void *)
 		}
 	}
 	GetLocalTime(&st);
-	sprintf(c, "<------- %02u/%02u/%02u %02u:%02u:%02u ------->",
-		st.wMonth, st.wDay, st.wYear, st.wHour, st.wMinute, st.wSecond);
+	sprintf(c, "<------- %04u-%02u-%02u %02u:%02u:%02u ------->",
+		st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
 	lvi.pszText = (LPSTR)c;
 	lvi.iItem = numitems;
 	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
