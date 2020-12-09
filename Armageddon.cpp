@@ -10114,7 +10114,9 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 		}
 	}
 	// Find the proc address to the function we want
-	ProcAddr5 = (FARPROC)GetProcAddress(hModule, (LPCSTR)"WaitForDebugEvent");
+	ProcAddr5 = (FARPROC)GetProcAddress(GetModuleHandleA("kernelbase.dll"), "WaitForDebugEvent");
+	if (!ProcAddr5)
+		ProcAddr5 = (FARPROC)GetProcAddress(hModule, (LPCSTR)"WaitForDebugEvent");
 	if (!ProcAddr5)
 	{
 		buf = 0;
