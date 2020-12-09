@@ -15038,6 +15038,10 @@ unsigned __stdcall RunExe(void *)
 					}
 					break;
 
+				case EXCEPTION_BREAKPOINT:
+					dwContinueStatus = DBG_CONTINUE;
+					break;
+
 				default:
 					//sprintf( b,"Exception address:%08X\n"
 					//"Exception Code:%08X",
