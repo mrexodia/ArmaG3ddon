@@ -746,6 +746,61 @@ BYTE	Asm[TEXTLEN] = { 0 };
 BYTE	*Spliced = 0;
 BYTE	*Target = 0;
 
+BOOL	logitemreplace = FALSE;
+
+void LogItem(LPCSTR fmt, ...)
+{
+	static DWORD LastError;
+	static BOOL itemreplaced;
+
+	BOOL replace = FALSE;
+	if (logitemreplace)
+	{
+		logitemreplace = FALSE;
+		if (!itemreplaced)
+		{
+			itemreplaced = TRUE;
+		}
+		else
+		{
+			replace = TRUE;
+		}
+	}
+	else if (itemreplaced)
+	{
+		itemreplaced = FALSE;
+		replace = TRUE;
+	}
+
+	if (fmt == NULL)
+	{
+		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
+			FORMAT_MESSAGE_IGNORE_INSERTS,
+			NULL, LastError, 0,
+			b, sizeof(b), NULL);
+	}
+	else
+	{
+		LastError = GetLastError();
+		va_list args;
+		va_start(args, fmt);
+		StringCbVPrintf(b, sizeof(b), fmt, args);
+		va_end(args);
+	}
+	if (replace)
+	{
+		ListView_SetItemText(hwndIDLISTVIEW, lvi.iItem, 0, b);
+	}
+	else
+	{
+		lvi.pszText = b;
+		lvi.iItem = numitems++;
+		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
+		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
+		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
+	}
+}
+
 BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam)
 {
 	char title[80];
@@ -757,11 +812,7 @@ BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam)
 	if (strstr(compt, "ARMA") ||
 		strstr(compt, "@ARM@"))
 	{
-		sprintf(b, "EnumWindows: %s", title);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("EnumWindows: %s", title);
 		SetWindowText(hwnd, "");
 	}
 	return TRUE;
@@ -893,19 +944,13 @@ BOOL LoadBeaEngine(void)
 	// check to make sure LoadLibrary() didn't return NULL 
 	if (hinstLib == NULL)
 	{
-		lvi.pszText = "LoadLibrary error: BeaEngine.dll";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("LoadLibrary error: BeaEngine.dll");
 		return FALSE;
 	}
 	ProcAdd = (MYPROC)GetProcAddress(hinstLib, (LPCSTR)"_Disasm@4");
 	if (ProcAdd == NULL)
 	{
-		lvi.pszText = "GetProcAddress error: _Disasm@4";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("GetProcAddress error: _Disasm@4");
 		return FALSE;
 	}
 	return TRUE;
@@ -1102,20 +1147,14 @@ BOOL ArmNF_Init(void)
 	hdisasmdll = GetModuleHandle((LPCSTR)"disasm.dll");
 	if (!hdisasmdll)
 	{
-		lvi.pszText = "Module: disasm.dll; Function: GetModuleHandle Failed";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Module: disasm.dll; Function: GetModuleHandle Failed");
 		return FALSE;
 	}
 	// Find the proc address to the function we want
 	AsmAddr = (FARPROC)GetProcAddress(hdisasmdll, (LPCSTR)"_Assemble@24");
 	if (!AsmAddr)
 	{
-		lvi.pszText = "Function Assemble, GetProcAddress Failed";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Function Assemble, GetProcAddress Failed");
 		return FALSE;
 	}
 	AssembleAddress = (DWORD)AsmAddr;
@@ -1123,10 +1162,7 @@ BOOL ArmNF_Init(void)
 	DsmAddr = (FARPROC)GetProcAddress(hdisasmdll, (LPCSTR)"_Disasm@20");
 	if (!DsmAddr)
 	{
-		lvi.pszText = "Function Disasm, GetProcAddress Failed";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Function Disasm, GetProcAddress Failed");
 		return FALSE;
 	}
 	DisasmAddress = (DWORD)DsmAddr;
@@ -1154,12 +1190,7 @@ unsigned __stdcall ArmNF_Analyze(void *)
 		memset(filebuffer, 0, sizeof(MAX_PATH));
 		goto ANALRETN;
 	}
-	lvi.pszText = (LPSTR)isep;
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("%s", isep);
 	td.T2 = ThroughFile;
 	td.T1 = UNKNOWN_COMPILR;
 	int typei = 0;
@@ -1176,12 +1207,7 @@ int ArmNF_WriteTableToFile(void)
 	// Do we have any nanomites in table to save?
 	if (NFlog.TRN == 0)
 	{
-		lvi.pszText = "No Real nanomites found, action canceled";
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("No Real nanomites found, action canceled");
 		return 1;
 	}
 	// Create a nano file
@@ -1191,38 +1217,17 @@ int ArmNF_WriteTableToFile(void)
 	}
 	else
 	{
-		lvi.pszText = "Save nanomites table canceled";
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Save nanomites table canceled");
 		memset(nanobuffer, 0, sizeof(MAX_PATH));
 		return 0;
 	}
-	lvi.pszText = "Saving Nanomites table...";
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("Saving Nanomites table...");
 	int iArmNF = 0;
 	iArmNF = WriteTableToFile(nanobuffer);
 	if (iArmNF == 0)
 	{
-		memset(c, 0, sizeof(c));
-		ultoa(NFlog.TRN, c, 10);
-		sprintf(ibuf, "%s nanomites saved...", c);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = "Done.";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("%ul nanomites saved...", NFlog.TRN);
+		LogItem("Done.");
 	}
 	return iArmNF;
 }
@@ -1242,20 +1247,11 @@ void ArmNF_DumpNanos(void)
 		NFDretn = MakeLog(&NFlog);
 		if (NFDretn != 0)
 		{
-			lvi.pszText = "Nanofixer Makelog function failed";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("Nanofixer Makelog function failed");
 			return;
 		}
-		lvi.pszText = "------ NanoFixer Analyzing Nanomites ------";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = "Initializing...";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("------ NanoFixer Analyzing Nanomites ------");
+		LogItem("Initializing...");
 		// Create a new thread for this function
 		hAnalThread = 0;
 		isrunning = TRUE;
@@ -1265,14 +1261,8 @@ void ArmNF_DumpNanos(void)
 		if (!hAnalThread)
 		{
 			isrunning = FALSE;
-			lvi.pszText = "CreateThread failed for analyze nanomites";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = "please refresh and try again!";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("CreateThread failed for analyze nanomites");
+			LogItem("please refresh and try again!");
 			return;
 		}
 		while (isrunning)
@@ -1283,29 +1273,15 @@ void ArmNF_DumpNanos(void)
 			NFDretn = MakeLog(&NFlog);
 			if (NFDretn == 0)
 			{
-				memset(c, 0, sizeof(c));
-				memset(d, 0, sizeof(d));
-				memset(a, 0, sizeof(a));
+				logitemreplace = TRUE;
 				if (totalanalyzed && NFlog.TotalCC > 0)
 				{
-					ultoa(NFlog.TotalCC, c, 10);
-					sprintf(ibuf, "%s INT3 Found", c);
+					LogItem("%lu INT3 Found", NFlog.TotalCC);
 					totalanalyzed = FALSE;
-					lvi.pszText = (LPSTR)ibuf;
-					lvi.iItem = numitems;
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
 				}
 				else
 				{
-					ultoa(NFlog.TACC, c, 10);
-					ultoa(NFlog.TFCC, d, 10);
-					ultoa(NFlog.TRN, a, 10);
-					sprintf(ibuf, "%s INT3 Analyzed, %s False, %s Real", c, d, a);
-					ListView_DeleteItem(hwndIDLISTVIEW, numitems);
-					lvi.pszText = (LPSTR)ibuf;
-					lvi.iItem = numitems;
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
+					LogItem("%lu INT3 Analyzed, %lu False, %lu Real", NFlog.TACC, NFlog.TFCC, NFlog.TRN);
 				}
 			}
 			else
@@ -1321,29 +1297,16 @@ void ArmNF_DumpNanos(void)
 		// if we are encountering any problems?
 		if (analyzeprob)
 		{
-			lvi.pszText = "Less than 5% and/or no activity for 30 seconds";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = "Check for multiple instances, anti virus running";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = "Analyze nanomites aborted, please try again later...";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("Less than 5%% and/or no activity for 30 seconds");
+			LogItem("Check for multiple instances, anti virus running");
+			LogItem("Analyze nanomites aborted, please try again later...");
 			return;
 		}
 		if (NFIretn > 0)
 		{
 			// problem encountered analyzing nanomites!!
-			memset(ibuf, 0, sizeof(ibuf));
 			switch (NFIretn)
 			{
-			case 0:
-				//No Error
-				break;
 			case 1:
 				sprintf(ibuf, "No Real nanomites found, Unknown Error");
 				break;
@@ -1369,52 +1332,28 @@ void ArmNF_DumpNanos(void)
 				sprintf(ibuf, "Unsupported version of Nanomites");
 				break;
 			default:
+				sprintf(ibuf, "Unknown error");
 				break;
 			}
-			ListView_DeleteItem(hwndIDLISTVIEW, numitems);
-			lvi.pszText = (LPSTR)ibuf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem((LPSTR)ibuf);
 			return;
 		}
 		else if (NFlog.TRN == 0)
 		{
 			// no nanomites found!!
-			ListView_DeleteItem(hwndIDLISTVIEW, numitems);
-			lvi.pszText = "No Nanomites found.";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("No Nanomites found.");
 			return;
 		}
 		else
 		{
 			// everything went OK!!
-			memset(c, 0, sizeof(c));
-			memset(d, 0, sizeof(d));
-			memset(a, 0, sizeof(a));
-			ultoa(NFlog.TACC, c, 10);
-			ultoa(NFlog.TFCC, d, 10);
-			ultoa(NFlog.TRN, a, 10);
-			sprintf(ibuf, "%s INT3 Analyzed, %s False, %s Real", c, d, a);
-			ListView_DeleteItem(hwndIDLISTVIEW, numitems);
-			lvi.pszText = (LPSTR)ibuf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = "Analyzing successfully completed";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("%lu INT3 Analyzed, %lu False, %lu Real", NFlog.TACC, NFlog.TFCC, NFlog.TRN);
+			LogItem("Analyzing successfully completed");
 			NFIretn = 0;
 			NFIretn = ArmNF_WriteTableToFile();
 			if (NFIretn != 0)
 			{
-				lvi.pszText = "Save nanomites table failed";
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("Save nanomites table failed");
 			}
 		}
 	}
@@ -1429,24 +1368,14 @@ void CALLBACK UpdateCB(UpdateReport *TStruct)
 	{
 		ReportedTotal = TRUE;
 		Tally = TStruct->NumNanos;
-		ultoa(Tally, c, 10);
-		sprintf(ibuf, "%s potential INT3 found.", c);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = "0 INT3 processed...";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
+		LogItem("%lu potential INT3 found.", (DWORD)Tally);
+		logitemreplace = TRUE;
+		LogItem("0 INT3 processed...");
 	}
 	if (TStruct->CurrentNano > 0)
 	{
-		ListView_DeleteItem(hwndIDLISTVIEW, numitems);
-		ultoa(TStruct->CurrentNano, c, 10);
-		sprintf(ibuf, "%s INT3 processed...", c);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
+		logitemreplace = TRUE;
+		LogItem("%lu INT3 processed...", (DWORD)TStruct->CurrentNano);
 	}
 	memcpy(&RStruct, (const void *)TStruct, sizeof(RStruct));
 	return;
@@ -1457,14 +1386,8 @@ void CALLBACK UpdateCBlog(UpdateLog *SStruct)
 {
 	if (SStruct->LogNanos > 0)
 	{
-		ListView_DeleteItem(hwndIDLISTVIEW, numitems);
-		ultoa(SStruct->LogNanos, c, 10);
-		sprintf(ibuf, "%s INT3 logged...", c);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
+		logitemreplace = TRUE;
+		LogItem("%lu INT3 logged...", (DWORD)SStruct->LogNanos);
 	}
 	memcpy(&LStruct, (const void *)SStruct, sizeof(LStruct));
 	return;
@@ -1492,13 +1415,7 @@ BOOL SaveNano(void)
 		pszPathName++;
 		strcpy(c, (const char *)pszPathName);
 	}
-	ListView_DeleteItem(hwndIDLISTVIEW, &lvi);
-	lvi.pszText = "Saving Nanomites table...";
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("Saving Nanomites table...");
 	hFile3 = CreateFile((LPCSTR)nanobuffer,     // file to create
 		GENERIC_WRITE,          // open for read/write
 		FILE_SHARE_READ | FILE_SHARE_WRITE,       // share for read/write
@@ -1508,32 +1425,15 @@ BOOL SaveNano(void)
 		NULL);                 // no attr. template
 	if (hFile3 == INVALID_HANDLE_VALUE)
 	{
-		memset(ibuf, 0, sizeof(ibuf));
-		sprintf(ibuf, "CreateFile error %s %d", c, GetLastError());
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("CreateFile error %s %d", c, GetLastError());
 		return FALSE;
 	}
 	WriteFile(hFile3, (LPCVOID)RNano, sizeof(RNANO)*NumNanos, &dwWritten, NULL);
 	SetEndOfFile(hFile3);
 	CloseHandle(hFile3);
 	hFile3 = 0;
-	ultoa(NumNanos, c, 10);
-	sprintf(ibuf, "%s nanomites saved...", c);
-	lvi.pszText = (LPSTR)ibuf;
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	lvi.pszText = "Done.";
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("%lu nanomites saved...", (DWORD)NumNanos);
+	LogItem("Done.");
 	return TRUE;
 }
 
@@ -1548,11 +1448,7 @@ void PruneNanomites(void)
 	}
 	catch (std::exception& e)
 	{
-		sprintf(b, "Unable to Prune nanomite table! exception %s", e.what());
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Unable to Prune nanomite table! exception %s", e.what());
 		return;
 	}
 	for (I = 0; I < NumNanos; I++)
@@ -1580,12 +1476,7 @@ void PruneNanomites(void)
 	}
 	catch (std::exception& e)
 	{
-		memset(ibuf, 0, sizeof(ibuf));
-		sprintf(ibuf, "Unable to Prune nanomite table! exception: %s", e.what());
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Unable to Prune nanomite table! exception: %s", e.what());
 		return;
 	}
 	for (I = 0; I < NewCount; I++)
@@ -1596,13 +1487,7 @@ void PruneNanomites(void)
 	}
 	if (NumNanos != NewCount)
 	{
-		ultoa((NumNanos - NewCount), c, 10);
-		sprintf(ibuf, "%s useless Nanomites discarded.", c);
-		ListView_DeleteItem(hwndIDLISTVIEW, numitems);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("%lu useless Nanomites discarded.", (DWORD)(NumNanos - NewCount));
 		NumNanos = NewCount;
 	}
 	if (VClean)
@@ -1618,22 +1503,13 @@ void LocateNanomites(void)
 {
 	if (!debugblocker)
 	{
-		lvi.pszText = "Option only valid with Debug-Blocker.";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Option only valid with Debug-Blocker.");
 		return;
 	}
 
-	lvi.pszText = "------ Analyze Nanomites ------";
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("------ Analyze Nanomites ------");
 	ReportedTotal = FALSE;
-	lvi.pszText = "Initializing...";
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("Initializing...");
 	memset(&RStruct, 0, sizeof(RStruct));
 	DoNanomites((SIZE_T)UpdateCB, &RStruct, (LPSTR)buffer, (LPSTR)nbuf, pNumNanos, &TNano[0]);
 	if (TNano)
@@ -1643,11 +1519,7 @@ void LocateNanomites(void)
 	}
 	if (RStruct.CurrentNano == 0)
 	{
-		ListView_DeleteItem(hwndIDLISTVIEW, numitems);
-		lvi.pszText = "No Nanomites found.";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("No Nanomites found.");
 	}
 	if ((RStruct.CurrentNano - RStruct.NumDuf) > 0)
 	{
@@ -1663,34 +1535,19 @@ void LocateNanomites(void)
 		}
 		catch (std::exception& e)
 		{
-			memset(ibuf, 0, sizeof(ibuf));
-			sprintf(ibuf, "Unable to Prune nanomite table! Standard exception: %s", e.what());
-			lvi.pszText = (LPSTR)ibuf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("Unable to Prune nanomite table! Standard exception: %s", e.what());
 			return;
 		}
 		Populate(&VNano[0]);
 		PruneNanomites();
-		ultoa((RStruct.CurrentNano), c, 10);
-		ultoa(NumNanos, d, 10);
-		sprintf(ibuf, "%s INT3 found, %s successfully analyzed.", c, d);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("%lu INT3 found, %lu successfully analyzed.", (DWORD)RStruct.CurrentNano, (DWORD)NumNanos);
 		EnableWindow(hwnd07, TRUE);
 		EnableWindow(hwnd15, TRUE);
 		SaveNano();
 	}
 	else
 	{
-		ListView_DeleteItem(hwndIDLISTVIEW, numitems);
-		lvi.pszText = "Process didn't attempt to repair Nanomites.";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Process didn't attempt to repair Nanomites.");
 	}
 	return;
 }
@@ -1700,43 +1557,24 @@ BOOL LogNanomites(void)
 {
 	if (!debugblocker)
 	{
-		lvi.pszText = "Option only valid with Debug-Blocker.";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Option only valid with Debug-Blocker.");
 		return FALSE;
 	}
-	lvi.pszText = "------ Log Nanomites ------";
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("------ Log Nanomites ------");
 	ReportedTotal = FALSE;
-	lvi.pszText = "Initializing...";
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("Initializing...");
 	memset(&LStruct, 0, sizeof(LStruct));
 	DoLogNanomites((SIZE_T)UpdateCBlog, &LStruct, (LPSTR)buffer, (LPSTR)nbuf);
 	if (LStruct.LogNanos == 0)
 	{
 		LogNanos = 0;
-		ListView_DeleteItem(hwndIDLISTVIEW, numitems);
-		lvi.pszText = "No Nanomites found.";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("No Nanomites found.");
 		return FALSE;
 	}
 	else
 	{
 		LogNanos = LStruct.LogNanos;
-		ultoa(LogNanos, c, 10);
-		sprintf(ibuf, "%s INT3 logged.", c);
-		ListView_DeleteItem(hwndIDLISTVIEW, numitems);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("%lu INT3 logged.", (DWORD)LogNanos);
 		try
 		{
 			if (LNano)
@@ -1748,12 +1586,7 @@ BOOL LogNanomites(void)
 		}
 		catch (std::exception& e)
 		{
-			lvi.pszText = "Unable to allocate nanomites table!";
-			lvi.iItem = numitems;
-			ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-			ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("Unable to allocate nanomites table!");
 			return FALSE;
 		}
 		PopulateLog(&LNano[0]);
@@ -1774,12 +1607,7 @@ BOOL LogNanomites(void)
 		}
 		catch (std::exception& e)
 		{
-			lvi.pszText = "Unable to allocate nanomites table!";
-			lvi.iItem = numitems;
-			ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-			ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("Unable to allocate nanomites table!");
 			return FALSE;
 		}
 		pNumNanos = 0;
@@ -1825,64 +1653,26 @@ BOOL CSVerify(HANDLE thisProcess)
 	}
 	catch (std::exception& e)
 	{
-		sprintf(b, "Standard exception: %s", e.what());
-		lvi.pszText = "Unable to create target code memory.";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Unable to create target code memory.");
+		LogItem("Standard exception: %s", e.what());
 		return FALSE;
 	}
 	NewProtect = PAGE_EXECUTE_READWRITE;
 	if (!VirtualProtectEx(thisProcess, (LPVOID)TStart, TLength, NewProtect, &OldProtect))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "VirtualProtectEx Error CSVerify address: %p", TStart);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("VirtualProtectEx Error CSVerify address: %p", TStart);
+		LogItem(NULL);
 		goto FINVERIFY;
 	}
 	if (!ReadProcessMemory(thisProcess, (LPVOID)TStart, &Target[0], TLength, &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error CSVerify address: %p", TStart);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error CSVerify address: %p", TStart);
+		LogItem(NULL);
 		goto FINVERIFY;
 	}
 	if (!VirtualProtectEx(thisProcess, (LPVOID)TStart, TLength, OldProtect, &NewProtect))
 	{
-		lvi.pszText = "VirtualProtect error target code.";
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("VirtualProtect error target code.");
 		goto FINVERIFY;
 	}
 	while (TPtr < TLength)
@@ -1954,18 +1744,8 @@ FINVERIFY:
 	}
 	if (NumSegments == 0)
 	{
-		lvi.pszText = (LPSTR)isep;
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = "No splices found.";
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("%s", isep);
+		LogItem("No splices found.");
 		return FALSE;
 	}
 	return TRUE;
@@ -1993,15 +1773,8 @@ BOOL CSAcquire(HANDLE thisProcess)
 	}
 	catch (std::exception& e)
 	{
-		sprintf(b, "Standard exception: %s", e.what());
-		lvi.pszText = "Unable to create spliced code memory.";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Unable to create spliced code memory.");
+		LogItem("Standard exception: %s", e.what());
 		return FALSE;
 	}
 	try
@@ -2010,34 +1783,14 @@ BOOL CSAcquire(HANDLE thisProcess)
 	}
 	catch (std::exception& e)
 	{
-		sprintf(b, "Standard exception: %s", e.what());
-		lvi.pszText = "Unable to create target code memory.";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Unable to create target code memory.");
+		LogItem("Standard exception: %s", e.what());
 		return FALSE;
 	}
 	if (!ReadProcessMemory(thisProcess, (LPCVOID)SStart, &Spliced[0], SLength, &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error CSAcquire address: %p", SStart);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error CSAcquire address: %p", SStart);
+		LogItem(NULL);
 		return FALSE;
 	}
 	else
@@ -2047,65 +1800,23 @@ BOOL CSAcquire(HANDLE thisProcess)
 	NewProtect = PAGE_EXECUTE_READWRITE;
 	if (!VirtualProtectEx(thisProcess, (LPVOID)TStart, TLength, NewProtect, &OldProtect))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "VirtualProtectEx Error CSAcquire address: %p", TStart);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("VirtualProtectEx Error CSAcquire address: %p", TStart);
+		LogItem(NULL);
 		return FALSE;
 	}
 	if (!ReadProcessMemory(thisProcess, (LPVOID)TStart, &Target[0], TLength, &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error CSAcquire address: %p", TStart);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error CSAcquire address: %p", TStart);
+		LogItem(NULL);
 		return FALSE;
 	}
 	if (!VirtualProtectEx(thisProcess, (LPVOID)TStart, TLength, OldProtect, &NewProtect))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "VirtualProtectEx Error CSAcquire address: %p", TStart);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("VirtualProtectEx Error CSAcquire address: %p", TStart);
+		LogItem(NULL);
 		return FALSE;
 	}
-	lvi.pszText = "Process memory buffered successfully.";
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("Process memory buffered successfully.");
 	return TRUE;
 }
 
@@ -2278,15 +1989,8 @@ void DoRC1(Instruction *Ins, int StartI, int EndI)
 	}
 	catch (std::exception& e)
 	{
-		sprintf(b, "Standard exception: %s", e.what());
-		lvi.pszText = "Function: DoRC1";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Function: DoRC1");
+		LogItem("Standard exception: %s", e.what());
 		return;
 	}
 	return;
@@ -2339,15 +2043,8 @@ void DoRC(Instruction *Ins, int StartI, int EndI)
 	}
 	catch (std::exception& e)
 	{
-		sprintf(b, "Standard exception: %s", e.what());
-		lvi.pszText = "Function: DoRC";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Function: DoRC");
+		LogItem("Standard exception: %s", e.what());
 		return;
 	}
 	try
@@ -2393,15 +2090,8 @@ void DoRC(Instruction *Ins, int StartI, int EndI)
 	}
 	catch (std::exception& e)
 	{
-		sprintf(b, "Standard exception: %s", e.what());
-		lvi.pszText = "Function: DoRC";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Function: DoRC");
+		LogItem("Standard exception: %s", e.what());
 		return;
 	}
 	try
@@ -2466,15 +2156,8 @@ void DoRC(Instruction *Ins, int StartI, int EndI)
 	}
 	catch (std::exception& e)
 	{
-		sprintf(b, "Standard exception: %s", e.what());
-		lvi.pszText = "Function: DoRC";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Function: DoRC");
+		LogItem("Standard exception: %s", e.what());
 		return;
 	}
 	try
@@ -2507,15 +2190,8 @@ void DoRC(Instruction *Ins, int StartI, int EndI)
 	}
 	catch (std::exception& e)
 	{
-		sprintf(b, "Standard exception: %s", e.what());
-		lvi.pszText = "Function: DoRC";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Function: DoRC");
+		LogItem("Standard exception: %s", e.what());
 		return;
 	}
 	try
@@ -2564,15 +2240,8 @@ void DoRC(Instruction *Ins, int StartI, int EndI)
 	}
 	catch (std::exception& e)
 	{
-		sprintf(b, "Standard exception: %s", e.what());
-		lvi.pszText = "Function: DoRC";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Function: DoRC");
+		LogItem("Standard exception: %s", e.what());
 		return;
 	}
 	DoRC1(Ins, StartI, EndI);
@@ -2654,15 +2323,8 @@ void FixSplice(DWORD_PTR Address, DWORD_PTR Redirect)
 	}
 	catch (std::exception& e)
 	{
-		sprintf(b, "Standard exception: %s", e.what());
-		lvi.pszText = "Function: FixSplice";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Function: FixSplice");
+		LogItem("Standard exception: %s", e.what());
 		return;
 	}
 	RouteLength = RPtr - Redirect + (DWORD_PTR)SStart;
@@ -2712,15 +2374,8 @@ void FixSplice(DWORD_PTR Address, DWORD_PTR Redirect)
 	}
 	catch (std::exception& e)
 	{
-		sprintf(b, "Standard exception: %s", e.what());
-		lvi.pszText = "Function: FixSplice";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Function: FixSplice");
+		LogItem("Standard exception: %s", e.what());
 		return;
 	}
 	if (NumInstr > 0)
@@ -2780,15 +2435,8 @@ COMPILE:
 		strncmp((const char *)Instrs[I].Opcode, "mov eax,eax", 11) == 0) &&
 		!Instrs[I].Active)
 	{
-		sprintf(ibuf, "Potential residue after %08X [Accepted]", Address);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = (LPSTR)"mov reg,reg (be prepared to fix manually.)";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Potential residue after %08X [Accepted]", Address);
+		LogItem("mov reg,reg (be prepared to fix manually.)");
 		Instrs[I].Active = TRUE;
 		goto COMPILE;
 		//return;
@@ -2808,34 +2456,15 @@ void DoRemoveSplicing(HANDLE thisProcess)
 	DWORD	OldProtect = 0;
 	DWORD	NewProtect = 0;
 	int		I = 0;
-	lvi.pszText = (LPSTR)isep;
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	lvi.pszText = "------- Code Splicing -------";
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("%s", isep);
+	LogItem("------- Code Splicing -------");
 
 	if (!CSAcquire(thisProcess))
 	{
-		lvi.pszText = "Failed to fix code...";
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Failed to fix code...");
 		return;
 	}
-	lvi.pszText = "Fixing spliced segments...";
-	lvi.iItem = numitems;
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("Fixing spliced segments...");
 
 	FuckedUp = FALSE;
 	TPtr = 0;
@@ -2870,167 +2499,56 @@ void DoRemoveSplicing(HANDLE thisProcess)
 			if (GetTickCount() - LastUpdate > 300)
 			{
 				LastUpdate = GetTickCount();
-				ListView_DeleteItem(hwndIDLISTVIEW, numitems);
-				ultoa(NumSegments, c, 10);
-				sprintf(ibuf, "%s splices repaired...", c);
-				lvi.pszText = (LPSTR)ibuf;
-				lvi.iItem = numitems;
-				ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-				ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
+				logitemreplace = TRUE;
+				LogItem("%lu splices repaired...", NumSegments);
 			}
 		}
 	}
 	catch (std::exception& e)
 	{
-		sprintf(b, "Standard exception: %s", e.what());
-		lvi.pszText = "Function: DoRemoveSplicing";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Function: DoRemoveSplicing");
+		LogItem("Standard exception: %s", e.what());
 		return;
 	}
 	if (NumSegments == 0)
 	{
-		lvi.pszText = "No splices found.";
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("No splices found.");
 		return;
 	}
-	ListView_DeleteItem(hwndIDLISTVIEW, numitems);
-	ultoa(NumSegments, c, 10);
-	sprintf(ibuf, "%s splices repaired...", c);
-	lvi.pszText = (LPSTR)ibuf;
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	lvi.pszText = "Splice repairing complete.";
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	lvi.pszText = "Patching process...";
-	lvi.iItem = numitems;
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("%lu splices repaired...", NumSegments);
+	LogItem("Splice repairing complete.");
+	LogItem("Patching process...");
 
 	NewProtect = PAGE_EXECUTE_READWRITE;
 	if (!VirtualProtectEx(thisProcess, (LPVOID)TStart, TLength, NewProtect, &OldProtect))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "VirtualProtectEx Error DoRemoveSplicing address: %p", TStart);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("VirtualProtectEx Error DoRemoveSplicing address: %p", TStart);
+		LogItem(NULL);
 		return;
 	}
 	if (!WriteProcessMemory(thisProcess, (LPVOID)TStart, &Target[0], TLength, &dwWritten))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "WriteProcessMemory Error DoRemoveSplicing address: %p", TStart);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("WriteProcessMemory Error DoRemoveSplicing address: %p", TStart);
+		LogItem(NULL);
 		return;
 	}
 	if (!VirtualProtectEx(thisProcess, (LPVOID)TStart, TLength, OldProtect, &NewProtect))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "VirtualProtectEx Error DoRemoveSplicing address: %p", TStart);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("VirtualProtectEx Error DoRemoveSplicing address: %p", TStart);
+		LogItem(NULL);
 		return;
 	}
 FIXDONE:
 	if (FuckedUp)
 	{
-		lvi.pszText = "Patch completed with some potential errors.";
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = "Code section may be invalid.";
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = "try again or check option redirect";
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = "code splices and try again.";
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Patch completed with some potential errors.");
+		LogItem("Code section may be invalid.");
+		LogItem("Try again or check option redirect");
+		LogItem("code splices and try again.");
 	}
 	else
 	{
-		lvi.pszText = "Patch successful.";
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Patch successful.");
 	}
 	if (Spliced)
 	{
@@ -3301,10 +2819,7 @@ void SaveLogfile(void)
 	{
 		if (numitems > 0)
 		{
-			lvi.pszText = "Cannot save. No target file selected!";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("Cannot save. No target file selected!");
 		}
 		return;
 	}
@@ -3317,22 +2832,12 @@ void SaveLogfile(void)
 		NULL);                 // no attr. template
 	if (hFile2 == INVALID_HANDLE_VALUE)
 	{
-		memset(ibuf, 0, sizeof(ibuf));
-		sprintf(ibuf, "CreateFile error %s %d", logbuffer, GetLastError());
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("CreateFile error %s %d", logbuffer, GetLastError());
 		return;
 	}
 	// Get itemcount
 	iStatus = ListView_GetItemCount(hwndIDLISTVIEW);
-	lvi.pszText = "Saving logfile...";
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("Saving logfile...");
 	if (iStatus > 0)
 	{
 		lvi.pszText = sztempbuffer;
@@ -3347,12 +2852,7 @@ void SaveLogfile(void)
 	SetEndOfFile(hFile2);
 	CloseHandle(hFile2);
 	hFile2 = 0;
-	lvi.pszText = "Done.";
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("Done.");
 	return;
 }
 
@@ -3377,12 +2877,7 @@ BOOL LoadNanoAnf(void)
 		pszPathName++;
 		strcpy(c, (const char *)pszPathName);
 	}
-	lvi.pszText = "Loading Nanomites table...";
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("Loading Nanomites table...");
 
 	HANDLE		hFile4 = 0;
 	hFile4 = CreateFile((LPCSTR)nanobuffer,
@@ -3394,12 +2889,7 @@ BOOL LoadNanoAnf(void)
 		NULL);                 // no attr. template
 	if (hFile4 == INVALID_HANDLE_VALUE)
 	{
-		memset(ibuf, 0, sizeof(ibuf));
-		sprintf(ibuf, "CreateFile error %s %d", c, GetLastError());
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("CreateFile error %s %d", c, GetLastError());
 		return FALSE;
 	}
 	// Initialize log arrays
@@ -3416,33 +2906,14 @@ BOOL LoadNanoAnf(void)
 	RNano = new RNANO[NumNanos + 1];
 	if (!ReadFile(hFile4, (LPVOID)RNano, sizeof(RNANO)*NumNanos, &dwRead, NULL))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "ReadFile Error LoadNanoAnf";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadFile Error LoadNanoAnf");
+		LogItem(NULL);
 	}
 	CloseHandle(hFile4);
 	hFile4 = 0;
 	if (dwRead == 0)
 	{
-		memset(ibuf, 0, sizeof(ibuf));
-		sprintf(ibuf, "Possible invalid nanomite file %s", c);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Possible invalid nanomite file %s", c);
 		if (RNano)
 		{
 			delete[] RNano;
@@ -3451,21 +2922,8 @@ BOOL LoadNanoAnf(void)
 		}
 		return FALSE;
 	}
-	memset(c, 0, sizeof(c));
-	ultoa(NumNanos, c, 10);
-	sprintf(ibuf, "%s nanomites anf loaded...", c);
-	lvi.pszText = (LPSTR)ibuf;
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	lvi.pszText = "Done.";
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("%lu nanomites anf loaded...", (DWORD)NumNanos);
+	LogItem("Done.");
 	return TRUE;
 }
 
@@ -3482,10 +2940,7 @@ BOOL LoadIniFile(void)
 		memset(inibuffer, 0, sizeof(MAX_PATH));
 		return FALSE;
 	}
-	lvi.pszText = "Loading Armageddon options file...";
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("Loading Armageddon options file...");
 	DWORD dwret = 0;
 	memset(szCmdbuffer, 0, sizeof(szCmdbuffer));
 	// Get the options section - commandline argument
@@ -3497,10 +2952,7 @@ BOOL LoadIniFile(void)
 		inibuffer);
 	if (dwret == 0)
 	{
-		lvi.pszText = "This doesn't appear to be an Armageddon *.ini file!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("This doesn't appear to be an Armageddon *.ini file!");
 		return FALSE;
 	}
 	memset(szCmdbuffer, 0, sizeof(szCmdbuffer));
@@ -3774,10 +3226,7 @@ BOOL LoadIniFile(void)
 		// Set defaults
 		SetDlgItemText(hwndDlgA, IDC_ENHANCED, "0000-0000");
 	}
-	lvi.pszText = "Done.";
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("Done.");
 	return TRUE;
 }
 
@@ -3793,10 +3242,7 @@ BOOL SaveIniFile(void)
 		memset(inisavebuffer, 0, sizeof(MAX_PATH));
 		return FALSE;
 	}
-	lvi.pszText = "Saving Armageddon options file...";
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("Saving Armageddon options file...");
 
 	// Put the appname section - Armageddon argument
 	WritePrivateProfileString("APPNAME",
@@ -3940,10 +3386,7 @@ BOOL SaveIniFile(void)
 		"enhanced",
 		finger,
 		inisavebuffer);
-	lvi.pszText = "Done.";
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("Done.");
 	return TRUE;
 }
 
@@ -4083,10 +3526,7 @@ BOOL SetHardwareBP(HANDLE thisThread, DWORD_PTR *HWBPExceptionAddress, DWORD Len
 	// get contents of every debug register
 	if (!GetThreadContext(thisThread, &Context))
 	{
-		lvi.pszText = "GetThreadContext error. SetHardwareBP Failed";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("GetThreadContext error. SetHardwareBP Failed");
 		return FALSE;
 	}
 	for (n = 0; n < 4; n++)
@@ -4107,10 +3547,7 @@ BOOL SetHardwareBP(HANDLE thisThread, DWORD_PTR *HWBPExceptionAddress, DWORD Len
 
 	if (!SetThreadContext(thisThread, &Context))
 	{
-		lvi.pszText = "SetThreadContext error. SetHardwareBP Failed";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("SetThreadContext error. SetHardwareBP Failed");
 		return FALSE;
 	}
 	return TRUE;
@@ -4124,10 +3561,7 @@ BOOL ClearHardwareBP(HANDLE thisThread, int DbgRegister)
 	// get contents of every debug register
 	if (!GetThreadContext(thisThread, &Context))
 	{
-		lvi.pszText = "GetThreadContext error. ClearHardwareBP Failed";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("GetThreadContext error. ClearHardwareBP Failed");
 		return FALSE;
 	}
 	SETBITS(Context.Dr7, DbgRegister * 2, 1, 0);
@@ -4135,10 +3569,7 @@ BOOL ClearHardwareBP(HANDLE thisThread, int DbgRegister)
 	Context.Dr6 = 0x00000000;
 	if (!SetThreadContext(thisThread, &Context))
 	{
-		lvi.pszText = "SetThreadContext error. ClearHardwareBP Failed";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("SetThreadContext error. ClearHardwareBP Failed");
 		return FALSE;
 	}
 	return TRUE;
@@ -4150,42 +3581,16 @@ BOOL SetPseudoSingleStep(HANDLE thisprocess)
 	if (!ReadProcessMemory(thisprocess, (LPVOID)SWBPExceptionAddress[8], &scanbyte[8],
 		sizeof(BYTE), &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error SingleStep address: %p", SWBPExceptionAddress[8]);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error SingleStep address: %p", SWBPExceptionAddress[8]);
+		LogItem(NULL);
 		breaknow = TRUE;
 		return FALSE;
 	}
 	if (!WriteProcessMemory(thisprocess, (LPVOID)SWBPExceptionAddress[8], &replbyte[8],
 		sizeof(BYTE), &dwWritten))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "WriteProcessMemory Error SingleStep address: %p", SWBPExceptionAddress[8]);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("WriteProcessMemory Error SingleStep address: %p", SWBPExceptionAddress[8]);
+		LogItem(NULL);
 		breaknow = TRUE;
 		return FALSE;
 	}
@@ -4196,19 +3601,13 @@ BOOL SetSingleStep(HANDLE thisThread)
 	Context.ContextFlags = CONTEXT_FULL;
 	if (!GetThreadContext(thisThread, &Context))
 	{
-		lvi.pszText = "GetThreadContext error. SetSingleStep Failed";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("GetThreadContext error. SetSingleStep Failed");
 		return FALSE;
 	}
 	Context.EFlags |= 0x100;	// set the "trap" flag for single step
 	if (!SetThreadContext(thisThread, &Context))
 	{
-		lvi.pszText = "SetThreadContext error. SetSingleStep Failed";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("SetThreadContext error. SetSingleStep Failed");
 		return FALSE;
 	}
 	return TRUE;
@@ -4219,19 +3618,13 @@ BOOL ClearSingleStep(HANDLE thisThread)
 	Context.ContextFlags = CONTEXT_CONTROL;
 	if (!GetThreadContext(thisThread, &Context))
 	{
-		lvi.pszText = "GetThreadContext error. ClearSingleStep Failed";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("GetThreadContext error. ClearSingleStep Failed");
 		return FALSE;
 	}
 	Context.EFlags = 0x00000000;	// clear the "trap" flag for single step
 	if (!SetThreadContext(thisThread, &Context))
 	{
-		lvi.pszText = "SetThreadContext error. ClearSingleStep Failed";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("SetThreadContext error. ClearSingleStep Failed");
 		return FALSE;
 	}
 	return TRUE;
@@ -4250,20 +3643,8 @@ BOOL DetermineArmSections(HANDLE thisProcess)
 		);
 	if (PEdwAddress == NULL)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "VirtualAlloc Error DetermineArmSections";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("VirtualAlloc Error DetermineArmSections");
+		LogItem(NULL);
 		return FALSE;
 	}
 	// Find the last '\\' to obtain a pointer to just the base module name part
@@ -4284,12 +3665,7 @@ BOOL DetermineArmSections(HANDLE thisProcess)
 
 	if (hFile1 == INVALID_HANDLE_VALUE)
 	{
-		memset(ibuf, 0, sizeof(ibuf));
-		sprintf(ibuf, "CreateFile error %s %d", c, GetLastError());
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("CreateFile error %s %d", c, GetLastError());
 		return FALSE;
 	}
 	dwSaveFileSize = GetFileSize(
@@ -4298,20 +3674,8 @@ BOOL DetermineArmSections(HANDLE thisProcess)
 	// Read the base module's process address space PE header section into our process memory
 	if (!ReadFile(hFile1, PEdwAddress, PEdwSize, &dwRead, NULL))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "VirtualAlloc Error CreateDump";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("VirtualAlloc Error CreateDump");
+		LogItem(NULL);
 		return FALSE;
 	}
 	// Get a pointer to our process memory from above.
@@ -4338,16 +3702,8 @@ BOOL DetermineArmSections(HANDLE thisProcess)
 	if (dosHeader->e_magic != IMAGE_DOS_SIGNATURE)
 	{
 		// We grabbed wrong memory
-		memset(ibuf, 0, sizeof(ibuf));
-		lvi.pszText = "IMAGE_DOS_SIGNATURE not found";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		sprintf(ibuf, "%s", c);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("IMAGE_DOS_SIGNATURE not found");
+		LogItem("%s", c);
 		CloseHandle(hFile1);
 		hFile1 = 0;
 		return FALSE;
@@ -4355,36 +3711,17 @@ BOOL DetermineArmSections(HANDLE thisProcess)
 	if (*(DWORD *)NTSIGNATURE(g_pMappedFileBase) != IMAGE_NT_SIGNATURE)
 	{
 		// Not a valid PE file
-		memset(ibuf, 0, sizeof(ibuf));
-		lvi.pszText = "IMAGE_NT_SIGNATURE not found";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		sprintf(ibuf, "%s", c);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("IMAGE_NT_SIGNATURE not found");
+		LogItem("%s", c);
 		CloseHandle(hFile1);
 		hFile1 = 0;
 		return FALSE;
 	}
 	if (*(WORD *)SRSIGNATURE(g_pMappedFileBase) != IMAGE_SR_SIGNATURE)	// 'SR'
 	{
-		memset(ibuf, 0, sizeof(ibuf));
-		lvi.pszText = "IMAGE_SR_SIGNATURE not found";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		sprintf(ibuf, "%s", c);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = "Not an armadillo protected file!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("IMAGE_SR_SIGNATURE not found");
+		LogItem("%s", c);
+		LogItem("Not an armadillo protected file!");
 		CloseHandle(hFile1);
 		hFile1 = 0;
 		return FALSE;
@@ -4423,21 +3760,8 @@ BOOL DetermineArmSections(HANDLE thisProcess)
 					PvoidRead = 0x00000000;
 					if (!ReadProcessMemory(thisProcess, PdataVMaddress, &PvoidRead, sizeof(DWORD_PTR), &dwRead))
 					{
-						buf = 0;
-						FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-							FORMAT_MESSAGE_FROM_SYSTEM |
-							FORMAT_MESSAGE_IGNORE_INSERTS,
-							NULL, GetLastError(), 0,
-							(LPSTR)&buf, 0, NULL);
-						sprintf(b, "ReadProcessMemory Error DetermineArmSections address: %p", PdataVMaddress);
-						lvi.pszText = (LPSTR)b;
-						lvi.iItem = numitems;
-						ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-						numitems++;
-						lvi.pszText = buf;
-						lvi.iItem = numitems;
-						ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-						numitems++;
+						LogItem("ReadProcessMemory Error DetermineArmSections address: %p", PdataVMaddress);
+						LogItem(NULL);
 					}
 					// should not be equal to zeroes
 					else if (PvoidRead != 0)
@@ -4742,36 +4066,9 @@ DONE:
 // removing armadillo related sections
 long DoRebuildSectionsFromArmadillo(void)
 {
-	int		Comma = 0;
-	char	*pComma = 0;
 	MSINT = 0;
 	MSINT = RebuildSectionsFromArmadillo(buffer, savebuffer, ibuf);
-	if (strlen(ibuf) > 30)
-	{
-		pComma = strchr(ibuf + 30, ' ');
-		Comma = (int)(pComma - ibuf + 1);
-	}
-	else
-	{
-		pComma = (char *)strlen(ibuf);
-		Comma = (int)pComma;
-	}
-	memset(c, 0, sizeof(c));
-	strncpy(c, ibuf, Comma);
-	lvi.pszText = (LPSTR)c;
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	memset(c, 0, sizeof(c));
-	strncpy(c, ibuf + Comma, strlen(ibuf) - Comma);
-	lvi.pszText = (LPSTR)c;
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem(ibuf);
 	return (MSINT);
 }
 
@@ -4861,23 +4158,8 @@ void CreateDump(HANDLE thisProcess, int dumparmvm)
 		pszPathName++;
 		strcpy(c, (const char *)pszPathName);
 	}
-	if (LastUpdate > 0)
-	{
-		LastUpdate = 0;
-		numitems++;
-	}
-	lvi.pszText = (LPSTR)isep;
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	lvi.pszText = (LPSTR)h;
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("%s", isep);
+	LogItem("%s", h);
 	hFile = CreateFile((LPCSTR)savebuffer,     // file to create
 		GENERIC_READ | GENERIC_WRITE,          // open for read/write
 		FILE_SHARE_READ | FILE_SHARE_WRITE,        // share
@@ -4887,12 +4169,7 @@ void CreateDump(HANDLE thisProcess, int dumparmvm)
 		NULL);                  // no attr. template
 	if (hFile == INVALID_HANDLE_VALUE)
 	{
-		memset(ibuf, 0, sizeof(ibuf));
-		sprintf(ibuf, "CreateFile error %s %d", c, GetLastError());
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("CreateFile error %s %d", c, GetLastError());
 		goto FINISH;
 	}
 	SIZE_T vmSize = dwSize;
@@ -4910,60 +4187,22 @@ void CreateDump(HANDLE thisProcess, int dumparmvm)
 		);
 	if (dwAddress == NULL)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "VirtualAlloc Error CreateDump";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("VirtualAlloc Error CreateDump");
+		LogItem(NULL);
 		goto FINISH;
 	}
 	// Insure read/write access on process VM for dump
 	if (!VirtualProtectEx(thisProcess, dwBase, dwSize, PERWProtect, &PEOldProtect))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "VirtualProtectEx Error CreateDump address: %p", dwBase);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("VirtualProtectEx Error CreateDump address: %p", dwBase);
+		LogItem(NULL);
 		goto FINISH;
 	}
 	// Read the base module's process address space into our process memory
 	if (!ReadProcessMemory(thisProcess, dwBase, dwAddress, dwSize, &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error CreateDump address: %p", dwBase);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error CreateDump address: %p", dwBase);
+		LogItem(NULL);
 		goto FINISH;
 	}
 	// Copy saved PE header data from disk to dumped process memory 
@@ -4984,31 +4223,15 @@ void CreateDump(HANDLE thisProcess, int dumparmvm)
 	if (dosHeader->e_magic != IMAGE_DOS_SIGNATURE)
 	{
 		// We grabbed wrong memory
-		memset(ibuf, 0, sizeof(ibuf));
-		lvi.pszText = "IMAGE_DOS_SIGNATURE not found";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		sprintf(ibuf, "%s", c);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("IMAGE_DOS_SIGNATURE not found");
+		LogItem("%s", c);
 		goto FINISH;
 	}
 	if (*(DWORD *)NTSIGNATURE(g_pMappedFileBase) != IMAGE_NT_SIGNATURE)
 	{
 		// Not a valid PE file
-		memset(ibuf, 0, sizeof(ibuf));
-		lvi.pszText = "IMAGE_NT_SIGNATURE not found";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		sprintf(ibuf, "%s", c);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("IMAGE_NT_SIGNATURE not found");
+		LogItem("%s", c);
 		goto FINISH;
 	}
 	// FileAlignment s/b set to the value in SectionAlignment.
@@ -5063,20 +4286,11 @@ void CreateDump(HANDLE thisProcess, int dumparmvm)
 		// for debug dump, armadillo VM is copied to .pdata section for analysis
 		if (dumparmvm == 1)
 		{
-			lvi.pszText = "Dump error option selected.";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = "Adding new .error section header...";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("Dump error option selected.");
+			LogItem("Adding new .error section header...");
 			pImgSectHdr = (PIMAGE_SECTION_HEADER)SECHDROFFSET(g_pMappedFileBase);
 			AddNewSection(".error", dwArmVMNSize);
-			lvi.pszText = "Appending new data...";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("Appending new data...");
 			PdataVMaddress = (LPVOID)(pImgSectHdr->VirtualAddress + (DWORD_PTR)dwAddress);
 			DWORD_PTR vmAddress = (DWORD_PTR)dwAddress + dwSize;
 			memcpy((LPVOID)vmAddress, dwBMVMAddress, vsize);
@@ -5110,19 +4324,8 @@ void CreateDump(HANDLE thisProcess, int dumparmvm)
 	SetFilePointer(hFile, dwSize, NULL, FILE_BEGIN);
 	SetEndOfFile(hFile);
 	// print success
-	lvi.pszText = "Dump done!";
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	sprintf(ibuf, "Saved to: %s", c);
-	lvi.pszText = (LPSTR)ibuf;
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("Dump done!");
+	LogItem("Saved to: %s", c);
 	if (dumparmvm == 1)
 	{
 		goto FINISH;
@@ -5133,28 +4336,13 @@ void CreateDump(HANDLE thisProcess, int dumparmvm)
 		CloseHandle(hFile);
 		hFile = 0;
 	}
-	lvi.pszText = (LPSTR)isep;
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	lvi.pszText = "Rebuilding Imports...";
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("%s", isep);
+	LogItem("Rebuilding Imports...");
 	if (debugblocker)
 	{
 		if (checkminimizesize)
 		{
-			lvi.pszText = "Rebuilding Sections...";
-			lvi.iItem = numitems;
-			ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-			ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("Rebuilding Sections...");
 			MSretn = DoRebuildSectionsFromArmadillo();
 			if (MSretn == 0)
 			{
@@ -5166,12 +4354,7 @@ void CreateDump(HANDLE thisProcess, int dumparmvm)
 				}
 				else
 				{
-					lvi.pszText = "function: GetNameFileOptimized Error!";
-					lvi.iItem = numitems;
-					ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-					ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
+					LogItem("function: GetNameFileOptimized Error!");
 				}
 			}
 		}
@@ -5184,12 +4367,7 @@ void CreateDump(HANDLE thisProcess, int dumparmvm)
 	{
 		if (checkminimizesize)
 		{
-			lvi.pszText = "Rebuilding Sections...";
-			lvi.iItem = numitems;
-			ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-			ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("Rebuilding Sections...");
 			MSretn = DoRebuildSectionsFromArmadillo();
 			if (MSretn == 0)
 			{
@@ -5201,12 +4379,7 @@ void CreateDump(HANDLE thisProcess, int dumparmvm)
 				}
 				else
 				{
-					lvi.pszText = "function: GetNameFileOptimized Error!";
-					lvi.iItem = numitems;
-					ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-					ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
+					LogItem("function: GetNameFileOptimized Error!");
 				}
 			}
 		}
@@ -5215,139 +4388,38 @@ void CreateDump(HANDLE thisProcess, int dumparmvm)
 			IRretn = DoSearchAndRebuildImports(DebugEv.dwProcessId);
 		}
 	}
-	lvi.pszText = "Rebuilding Imports completed";
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	sprintf(ibuf, "Return code: %X", IRretn);
-	lvi.pszText = (LPSTR)ibuf;
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	sprintf(ibuf, "%s", IRwarn);
-	lvi.pszText = (LPSTR)ibuf;
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	lvi.pszText = (LPSTR)isep;
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	sprintf(ibuf, "IAT RVA: %08X", IRiatrva);
-	lvi.pszText = (LPSTR)ibuf;
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	sprintf(ibuf, "IAT Size: %08X", IRiatsize);
-	lvi.pszText = (LPSTR)ibuf;
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	sprintf(ibuf, "OEP VA: %p", OEPVAddress);
-	lvi.pszText = (LPSTR)ibuf;
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	sprintf(ibuf, "OEP RVA: %p", OEPRVAddress);
-	lvi.pszText = (LPSTR)ibuf;
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("Rebuilding Imports completed");
+	LogItem("Return code: %X", IRretn);
+	LogItem("%s", IRwarn);
+	LogItem("%s", isep);
+	LogItem("IAT RVA: %08X", IRiatrva);
+	LogItem("IAT Size: %08X", IRiatsize);
+	LogItem("OEP VA: %p", OEPVAddress);
+	LogItem("OEP RVA: %p", OEPRVAddress);
 	if (dwoepcall > 0)
 	{
-		sprintf(ibuf, "OEP call return VA: %p", dwoepcall);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("OEP call return VA: %p", dwoepcall);
 		if (OEPDelphiRVAddress > 0 && OEPDelphiRVAddress != OEPRVAddress)
 		{
-			sprintf(ibuf, "2nd TEXT OEP VA: %p", OEPDelphiVAddress);
-			lvi.pszText = (LPSTR)ibuf;
-			lvi.iItem = numitems;
-			ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-			ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			sprintf(ibuf, "2nd TEXT OEP RVA: %p", OEPDelphiRVAddress);
-			lvi.pszText = (LPSTR)ibuf;
-			lvi.iItem = numitems;
-			ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-			ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("2nd TEXT OEP VA: %p", OEPDelphiVAddress);
+			LogItem("2nd TEXT OEP RVA: %p", OEPDelphiRVAddress);
 		}
 	}
 	if (checkdumppdata)
 	{
-		lvi.pszText = (LPSTR)isep;
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = "Unpacking Pdata Section...";
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("%s", isep);
+		LogItem("Unpacking Pdata Section...");
 		MSretn = UnpackPdataSection(buffer, savebuffer, ibuf);
-		lvi.pszText = "Unpacking Pdata completed";
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		memset(c, 0, sizeof(c));
-		sprintf(c, "Return code: %X", MSretn);
-		lvi.pszText = (LPSTR)c;
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		pComma = strchr(ibuf + 35, ' ');
-		Comma = (int)(pComma - ibuf + 1);
-		memset(c, 0, sizeof(c));
-		strncpy(c, ibuf, Comma);
-		lvi.pszText = (LPSTR)c;
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		memset(c, 0, sizeof(c));
+		LogItem("Unpacking Pdata completed");
+		LogItem("Return code: %X", MSretn);
+		Comma = 35 + strcspn(ibuf + 35, " ");
+		LogItem("%.*s", Comma, ibuf);
 		if (MSretn == 0)
 		{
 			pComma = strrchr(ibuf, '\\');
 			Comma = (int)(pComma - ibuf + 1);
 		}
-		strncpy(c, ibuf + Comma, strlen(ibuf) - Comma);
-		lvi.pszText = (LPSTR)c;
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("%s", ibuf + Comma);
 	}
 FINISH:
 	if (hFile)
@@ -5363,34 +4435,15 @@ void DumpSecurityDll(HANDLE thisProcess)
 {
 	dwArmVMAddress = 0;
 	dwArmVMNSize = 0;
-	lvi.pszText = (LPSTR)isep;
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	lvi.pszText = "Dumping security dll...";
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("%s", isep);
+	LogItem("Dumping security dll...");
 	// Obtain security dll size 
 	PvoidAddr = (PVOID)(DWORD_PTR)(Context.Esp + 8);
 	if (!ReadProcessMemory(thisProcess, (LPVOID)PvoidAddr, &PvoidRead,
 		sizeof(DWORD_PTR), &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error DetermineSecurityARMVM address: %p", PvoidAddr);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error DetermineSecurityARMVM address: %p", PvoidAddr);
+		LogItem(NULL);
 		return;
 	}
 	if (PvoidRead != NULL)
@@ -5406,21 +4459,8 @@ void DumpSecurityDll(HANDLE thisProcess)
 	if (!ReadProcessMemory(thisProcess, (LPVOID)PvoidAddr, &PvoidRead,
 		sizeof(DWORD_PTR), &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error DetermineSecurityARMVM address: %p", PvoidAddr);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error DetermineSecurityARMVM address: %p", PvoidAddr);
+		LogItem(NULL);
 		return;
 	}
 	if (PvoidRead != NULL)
@@ -5440,20 +4480,8 @@ void DumpSecurityDll(HANDLE thisProcess)
 		);
 	if (dwAddress == NULL)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "VirtualAlloc Error dump security dll";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("VirtualAlloc Error dump security dll");
+		LogItem(NULL);
 		goto FINISH;
 	}
 	ZeroMemory(dwAddress, dwArmVMNSize);
@@ -5463,21 +4491,8 @@ void DumpSecurityDll(HANDLE thisProcess)
 	{
 		if (dwRead == NULL)
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			sprintf(b, "ReadProcessMemory Error DumpSecurityDll address: %p", dwArmVMAddress);
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("ReadProcessMemory Error DumpSecurityDll address: %p", dwArmVMAddress);
+			LogItem(NULL);
 			goto FINISH;
 		}
 	}
@@ -5497,21 +4512,13 @@ void DumpSecurityDll(HANDLE thisProcess)
 	if (dosHeader->e_magic != IMAGE_DOS_SIGNATURE)
 	{
 		// We grabbed wrong memory
-		memset(ibuf, 0, sizeof(ibuf));
-		lvi.pszText = "IMAGE_DOS_SIGNATURE not found";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("IMAGE_DOS_SIGNATURE not found");
 		goto FINISH;
 	}
 	if (*(DWORD *)NTSIGNATURE(g_pMappedFileBase) != IMAGE_NT_SIGNATURE)
 	{
 		// Not a valid PE file
-		memset(ibuf, 0, sizeof(ibuf));
-		lvi.pszText = "IMAGE_NT_SIGNATURE not found";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("IMAGE_NT_SIGNATURE not found");
 		goto FINISH;
 	}
 	dwSize = pImgOptHdr->SizeOfImage;
@@ -5540,49 +4547,24 @@ void DumpSecurityDll(HANDLE thisProcess)
 		NULL);                  // no attr. template
 	if (hFile == INVALID_HANDLE_VALUE)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "CreateFile Error: %s\n%s", pszPathName, buf);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("CreateFile Error: %s", pszPathName);
+		LogItem(NULL);
 		goto FINISH;
 	}
 	// ----- WRITE FILE MEMORY TO DISK -----
 	SetFilePointer(hFile, 0, NULL, FILE_BEGIN);
 	if (!WriteFile(hFile, dwAddress, dwSize, &dwWritten, NULL))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "WriteFile Error: %s\n%s", pszPathName, buf);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("WriteFile Error: %s", pszPathName);
+		LogItem(NULL);
 		goto FINISH;
 	}
 	// ------ FORCE CALCULATED FILE SIZE ------
 	SetFilePointer(hFile, dwSize, NULL, FILE_BEGIN);
 	SetEndOfFile(hFile);
 	// print success
-	lvi.pszText = "Dump done!";
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	sprintf(ibuf, "Saved to: %s", pszPathName);
-	lvi.pszText = (LPSTR)ibuf;
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("Dump done!");
+	LogItem("Saved to: %s", pszPathName);
 FINISH:
 	if (hFile)
 	{
@@ -5617,17 +4599,9 @@ void LoadSecurityDllFileName(HANDLE thisProcess)
 	if (LastUpdate > 0)
 	{
 		LastUpdate = 0;
-		numitems++;
 	}
-	lvi.pszText = (LPSTR)isep;
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	sprintf(ibuf, "Loading: %s", pszPathName);
-	lvi.pszText = (LPSTR)ibuf;
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("%s", isep);
+	LogItem("Loading: %s", pszPathName);
 	// Read the security dll file for the PE header data
 	hFile5 = CreateFile((LPCSTR)armbuffer,     // file to create
 		GENERIC_READ | GENERIC_WRITE,          // open for read/write
@@ -5638,17 +4612,8 @@ void LoadSecurityDllFileName(HANDLE thisProcess)
 		NULL);                 // no attr. template
 	if (hFile5 == INVALID_HANDLE_VALUE)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "CreateFile Error: %s\n%s", pszPathName, buf);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("CreateFile Error: %s", pszPathName);
+		LogItem(NULL);
 		return;
 	}
 	// Obtain ArmVM size 
@@ -5656,21 +4621,8 @@ void LoadSecurityDllFileName(HANDLE thisProcess)
 	if (!ReadProcessMemory(thisProcess, (LPVOID)PvoidAddr, &PvoidRead,
 		sizeof(DWORD_PTR), &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error DetermineSecurityARMVM address: %p", PvoidAddr);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error DetermineSecurityARMVM address: %p", PvoidAddr);
+		LogItem(NULL);
 		return;
 	}
 	if (PvoidRead != NULL)
@@ -5686,21 +4638,8 @@ void LoadSecurityDllFileName(HANDLE thisProcess)
 	if (!ReadProcessMemory(thisProcess, (LPVOID)PvoidAddr, &PvoidRead,
 		sizeof(DWORD_PTR), &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error DetermineSecurityARMVM address: %p", PvoidAddr);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error DetermineSecurityARMVM address: %p", PvoidAddr);
+		LogItem(NULL);
 		return;
 	}
 	if (PvoidRead != NULL)
@@ -5720,20 +4659,8 @@ void LoadSecurityDllFileName(HANDLE thisProcess)
 		);
 	if (dwAddress == NULL)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "VirtualAlloc Error load security dll";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("VirtualAlloc Error load security dll");
+		LogItem(NULL);
 		goto ARMDONE;
 	}
 	ZeroMemory(dwAddress, dwArmVMNSize);
@@ -5741,17 +4668,8 @@ void LoadSecurityDllFileName(HANDLE thisProcess)
 	// Read the security dll file info into our process memory
 	if (!ReadFile(hFile5, dwAddress, dwSize, &dwRead, NULL))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadFile Error: %s\n%s", pszPathName, buf);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadFile Error: %s", pszPathName);
+		LogItem(NULL);
 		goto ARMDONE;
 	}
 	g_pMappedFileBase = (PBYTE)dwAddress;
@@ -5764,21 +4682,13 @@ void LoadSecurityDllFileName(HANDLE thisProcess)
 	if (dosHeader->e_magic != IMAGE_DOS_SIGNATURE)
 	{
 		// We grabbed wrong memory
-		memset(ibuf, 0, sizeof(ibuf));
-		lvi.pszText = "IMAGE_DOS_SIGNATURE not found";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("IMAGE_DOS_SIGNATURE not found");
 		goto ARMDONE;
 	}
 	if (*(DWORD *)NTSIGNATURE(g_pMappedFileBase) != IMAGE_NT_SIGNATURE)
 	{
 		// Not a valid PE file
-		memset(ibuf, 0, sizeof(ibuf));
-		lvi.pszText = "IMAGE_NT_SIGNATURE not found";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("IMAGE_NT_SIGNATURE not found");
 		goto ARMDONE;
 	}
 	PvoidAddr = dwArmVMAddress;
@@ -5787,27 +4697,11 @@ void LoadSecurityDllFileName(HANDLE thisProcess)
 	if (!WriteProcessMemory(thisProcess, (LPVOID)PvoidAddr, dwAddress,
 		dwSize, &dwWritten))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "WriteProcessMemory Error LoadSecurityDll address: %p", PvoidAddr);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("WriteProcessMemory Error LoadSecurityDll address: %p", PvoidAddr);
+		LogItem(NULL);
 		goto ARMDONE;
 	}
-	lvi.pszText = "Load Done.";
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("Load Done.");
 ARMDONE:
 	if (hFile5)
 	{
@@ -5852,10 +4746,7 @@ BOOL DisassembleDump(void)
 		pszPathName++;
 		strcpy(c, (const char *)pszPathName);
 	}
-	lvi.pszText = "------ Disassembling Dump ------";
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("------ Disassembling Dump ------");
 	// Read the saved dump executable file for the PE header data
 	hFile5 = CreateFile((LPCSTR)filebuffer,     // file to create
 		GENERIC_READ | GENERIC_WRITE,          // open for read/write
@@ -5866,22 +4757,8 @@ BOOL DisassembleDump(void)
 		NULL);                 // no attr. template
 	if (hFile5 == INVALID_HANDLE_VALUE)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		memset(ibuf, 0, sizeof(ibuf));
-		sprintf(ibuf, "CreateFile error %s", c);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("CreateFile error %s", c);
+		LogItem(NULL);
 		goto DISDONE;
 	}
 	// Allocate some memory to dump the 1st 4096 bytes of disk PE header data
@@ -5893,39 +4770,15 @@ BOOL DisassembleDump(void)
 		);
 	if (PEdwAddress == NULL)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "VirtualAlloc Error DisassembleDump";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("VirtualAlloc Error DisassembleDump");
+		LogItem(NULL);
 		goto DISDONE;
 	}
 	// Read the PE header file info into our process memory
 	if (!ReadFile(hFile5, PEdwAddress, PEdwSize, &dwRead, NULL))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "ReadFile Error DisassembleDump";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadFile Error DisassembleDump");
+		LogItem(NULL);
 		goto DISDONE;
 	}
 	g_pMappedFileBase = (PBYTE)PEdwAddress;
@@ -5938,31 +4791,15 @@ BOOL DisassembleDump(void)
 	if (dosHeader->e_magic != IMAGE_DOS_SIGNATURE)
 	{
 		// We grabbed wrong memory
-		memset(ibuf, 0, sizeof(ibuf));
-		lvi.pszText = "IMAGE_DOS_SIGNATURE not found";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		sprintf(ibuf, "%s", c);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("IMAGE_DOS_SIGNATURE not found");
+		LogItem("%s", c);
 		goto DISDONE;
 	}
 	if (*(DWORD *)NTSIGNATURE(g_pMappedFileBase) != IMAGE_NT_SIGNATURE)
 	{
 		// Not a valid PE file
-		memset(ibuf, 0, sizeof(ibuf));
-		lvi.pszText = "IMAGE_NT_SIGNATURE not found";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		sprintf(ibuf, "%s", c);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("IMAGE_NT_SIGNATURE not found");
+		LogItem("%s", c);
 		goto DISDONE;
 	}
 	dwSize = pImgOptHdr->SizeOfImage;
@@ -5992,20 +4829,8 @@ BOOL DisassembleDump(void)
 		);
 	if (dwAddress == NULL)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "VirtualAlloc Error DisassembleDump";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("VirtualAlloc Error DisassembleDump");
+		LogItem(NULL);
 		goto DISDONE;
 	}
 	// Reduce size for header just read
@@ -6013,20 +4838,8 @@ BOOL DisassembleDump(void)
 	// Read the rest of the file into our process memory
 	if (!ReadFile(hFile5, dwAddress, dwSize, &dwRead, NULL))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "ReadFile Error DisassembleDump";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadFile Error DisassembleDump");
+		LogItem(NULL);
 		goto DISDONE;
 	}
 	// Process the dumped file
@@ -6037,12 +4850,7 @@ BOOL DisassembleDump(void)
 	}
 	catch (std::exception& e)
 	{
-		lvi.pszText = "Unable to allocate nanomites table!";
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Unable to allocate nanomites table!");
 		goto DISDONE;
 	}
 	// Allocate some memory to store the string information for BeaEngine.dll
@@ -6054,17 +4862,9 @@ BOOL DisassembleDump(void)
 	dwDataAddress = (DWORD_PTR)dwAddress;
 
 	LastUpdate = GetTickCount();
-	lvi.pszText = (LPSTR)isep;
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	itoa(pNumNanos, c, 10);
-	sprintf(ibuf, "%s potential nanomites...", c);
-	lvi.pszText = (LPSTR)ibuf;
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
+	LogItem("%s", isep);
+	logitemreplace = TRUE;
+	LogItem("%lu potential nanomites...", (DWORD)pNumNanos);
 
 	memset(&MyDisasm, 0, sizeof(DISASM));
 	len = 0;
@@ -6085,14 +4885,8 @@ BOOL DisassembleDump(void)
 			if (GetTickCount() - LastUpdate > 200)
 			{
 				LastUpdate = GetTickCount();
-				ListView_DeleteItem(hwndIDLISTVIEW, numitems);
-				itoa(pNumNanos, c, 10);
-				sprintf(ibuf, "%s potential nanomites...", c);
-				lvi.pszText = (LPSTR)ibuf;
-				lvi.iItem = numitems;
-				ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-				ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
+				logitemreplace = TRUE;
+				LogItem("%lu potential nanomites...", (DWORD)pNumNanos);
 			}
 			// Need to parse the data for INT3 instruction
 			pszINT3 = mystring.find("int3");
@@ -6193,14 +4987,8 @@ BOOL DisassembleDump(void)
 	}
 
 DISDONE:
-	ListView_DeleteItem(hwndIDLISTVIEW, numitems);
-	itoa(pNumNanos, c, 10);
-	sprintf(ibuf, "%s potential nanomites...", c);
-	lvi.pszText = (LPSTR)ibuf;
-	lvi.iItem = numitems;
-	ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-	ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
+	logitemreplace = TRUE;
+	LogItem("%s potential nanomites...", pNumNanos);
 	if (hFile5)
 	{
 		CloseHandle(hFile5);
@@ -6224,10 +5012,7 @@ BOOL ResolveDump(void)
 	// Do we have any data to resolve?
 	if (NumNanos == 0)
 	{
-		lvi.pszText = "Please Load a nanomites *anf file to continue!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Please Load a nanomites *anf file to continue!");
 		EnableWindow(hwnd15, FALSE);
 		EnableWindow(hwnd07, FALSE);
 		return FALSE;
@@ -6249,11 +5034,7 @@ BOOL ResolveDump(void)
 		pszPathName++;
 		strcpy(c, (const char *)pszPathName);
 	}
-	ListView_DeleteItem(hwndIDLISTVIEW, numitems);
-	lvi.pszText = "------ Resolving Nanomites ------";
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("------ Resolving Nanomites ------");
 	// Read the saved dump executable file for the PE header data
 	hFile5 = CreateFile((LPCSTR)filebuffer,     // file to create
 		GENERIC_READ | GENERIC_WRITE,          // open for read/write
@@ -6264,12 +5045,7 @@ BOOL ResolveDump(void)
 		NULL);                 // no attr. template
 	if (hFile5 == INVALID_HANDLE_VALUE)
 	{
-		memset(ibuf, 0, sizeof(ibuf));
-		sprintf(ibuf, "CreateFile error %s %d", c, GetLastError());
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("CreateFile error %s %d", c, GetLastError());
 		return FALSE;
 	}
 	// Allocate some memory to dump the 1st 4096 bytes of disk PE header data
@@ -6281,20 +5057,8 @@ BOOL ResolveDump(void)
 		);
 	if (PEdwAddress == NULL)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "VirtualAlloc Error ResolveDump";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("VirtualAlloc Error ResolveDump");
+		LogItem(NULL);
 		error = TRUE;
 		goto RESOLVEDONE;
 		;
@@ -6302,20 +5066,8 @@ BOOL ResolveDump(void)
 	// Read the PE header file info into our process memory
 	if (!ReadFile(hFile5, PEdwAddress, PEdwSize, &dwRead, NULL))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "ReadFile Error ResolveDump";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadFile Error ResolveDump");
+		LogItem(NULL);
 		error = TRUE;
 		goto RESOLVEDONE;
 	}
@@ -6329,32 +5081,16 @@ BOOL ResolveDump(void)
 	if (dosHeader->e_magic != IMAGE_DOS_SIGNATURE)
 	{
 		// We grabbed wrong memory
-		memset(ibuf, 0, sizeof(ibuf));
-		lvi.pszText = "IMAGE_DOS_SIGNATURE not found";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		sprintf(ibuf, "%s", c);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("IMAGE_DOS_SIGNATURE not found");
+		LogItem("%s", c);
 		error = TRUE;
 		goto RESOLVEDONE;
 	}
 	if (*(DWORD *)NTSIGNATURE(g_pMappedFileBase) != IMAGE_NT_SIGNATURE)
 	{
 		// Not a valid PE file
-		memset(ibuf, 0, sizeof(ibuf));
-		lvi.pszText = "IMAGE_NT_SIGNATURE not found";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		sprintf(ibuf, "%s", c);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("IMAGE_NT_SIGNATURE not found");
+		LogItem("%s", c);
 		error = TRUE;
 		goto RESOLVEDONE;
 	}
@@ -6385,40 +5121,16 @@ BOOL ResolveDump(void)
 		);
 	if (dwAddress == NULL)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "VirtualAlloc Error ResolveDump";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("VirtualAlloc Error ResolveDump");
+		LogItem(NULL);
 		error = TRUE;
 		goto RESOLVEDONE;
 	}
 	// Read the rest of the file into our process memory
 	if (!ReadFile(hFile5, dwAddress, dwSize, &dwRead, NULL))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "ReadFile Error ResolveDump";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadFile Error ResolveDump");
+		LogItem(NULL);
 		error = TRUE;
 		goto RESOLVEDONE;
 	}
@@ -6528,30 +5240,10 @@ BOOL ResolveDump(void)
 		if (j <= 0)
 		{
 			// We have an error! bypass this nanomite address
-			memset(ibuf, 0, sizeof(ibuf));
-			sprintf(ibuf, "error= %s", errtext);
-			lvi.pszText = (LPSTR)ibuf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			memset(ibuf, 0, sizeof(ibuf));
-			sprintf(ibuf, "Address: %08X", RNano[i].Address);
-			lvi.pszText = (LPSTR)ibuf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			memset(ibuf, 0, sizeof(ibuf));
-			sprintf(ibuf, "Jumptype: %s", cjumptype);
-			lvi.pszText = (LPSTR)ibuf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			memset(ibuf, 0, sizeof(ibuf));
-			sprintf(ibuf, "Jumpdest: %08X", RNano[i].Dest);
-			lvi.pszText = (LPSTR)ibuf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("error= %s", errtext);
+			LogItem("Address: %08X", RNano[i].Address);
+			LogItem("Jumptype: %s", cjumptype);
+			LogItem("Jumpdest: %08X", RNano[i].Dest);
 		}
 		else
 		{
@@ -6570,22 +5262,9 @@ BOOL ResolveDump(void)
 		}
 		n = 0;
 	}
-	ultoa(NumNanos, c, 10);
-	sprintf(ibuf, "%s INT3 processed...", c);
-	lvi.pszText = (LPSTR)ibuf;
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	ultoa(resolvednanos, c, 10);
-	sprintf(ibuf, "%s INT3 resolved...", c);
-	lvi.pszText = (LPSTR)ibuf;
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	lvi.pszText = "Done.";
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("%lu INT3 processed...", (DWORD)NumNanos);
+	LogItem("%lu INT3 resolved...", resolvednanos);
+	LogItem("Done.");
 RESOLVEDONE:
 	if (hFile5)
 	{
@@ -6622,11 +5301,7 @@ BOOL ResolveProcess(HANDLE thisProcess)
 	// load a previously saved nanomite *anf file
 	if (LoadNanoAnf())
 	{
-		ListView_DeleteItem(hwndIDLISTVIEW, numitems);
-		lvi.pszText = "------ Resolving Nanomites ------";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("------ Resolving Nanomites ------");
 		// Process the nanomite vector
 		for (int i = 0; i < NumNanos; i++)
 		{
@@ -6728,30 +5403,10 @@ BOOL ResolveProcess(HANDLE thisProcess)
 			if (j <= 0)
 			{
 				// We have an error! bypass this nanomite address
-				memset(ibuf, 0, sizeof(ibuf));
-				sprintf(ibuf, "error= %s", errtext);
-				lvi.pszText = (LPSTR)ibuf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				memset(ibuf, 0, sizeof(ibuf));
-				sprintf(ibuf, "Address: %08X", RNano[i].Address);
-				lvi.pszText = (LPSTR)ibuf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				memset(ibuf, 0, sizeof(ibuf));
-				sprintf(ibuf, "Jumptype: %s", cjumptype);
-				lvi.pszText = (LPSTR)ibuf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				memset(ibuf, 0, sizeof(ibuf));
-				sprintf(ibuf, "Jumpdest: %08X", RNano[i].Dest);
-				lvi.pszText = (LPSTR)ibuf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("error= %s", errtext);
+				LogItem("Address: %08X", RNano[i].Address);
+				LogItem("Jumptype: %s", cjumptype);
+				LogItem("Jumpdest: %08X", RNano[i].Dest);
 			}
 			else
 			{
@@ -6761,21 +5416,8 @@ BOOL ResolveProcess(HANDLE thisProcess)
 				if (!ReadProcessMemory(thisProcess, (LPVOID)rawaddr, &readbyte,
 					sizeof(BYTE), &dwRead))
 				{
-					buf = 0;
-					FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-						FORMAT_MESSAGE_FROM_SYSTEM |
-						FORMAT_MESSAGE_IGNORE_INSERTS,
-						NULL, GetLastError(), 0,
-						(LPSTR)&buf, 0, NULL);
-					sprintf(b, "ReadProcessMemory Error ResolveProcess address: %08X", rawaddr);
-					lvi.pszText = (LPSTR)b;
-					lvi.iItem = numitems;
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
-					lvi.pszText = buf;
-					lvi.iItem = numitems;
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
+					LogItem("ReadProcessMemory Error ResolveProcess address: %08X", rawaddr);
+					LogItem(NULL);
 				}
 				else
 				{
@@ -6784,21 +5426,8 @@ BOOL ResolveProcess(HANDLE thisProcess)
 						if (!WriteProcessMemory(thisProcess, (LPVOID)rawaddr, &am.code,
 							sizeof(BYTE)*j, &dwWritten))
 						{
-							buf = 0;
-							FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-								FORMAT_MESSAGE_FROM_SYSTEM |
-								FORMAT_MESSAGE_IGNORE_INSERTS,
-								NULL, GetLastError(), 0,
-								(LPSTR)&buf, 0, NULL);
-							sprintf(b, "WriteProcessMemory Error ResolveProcess address: %08X", rawaddr);
-							lvi.pszText = (LPSTR)b;
-							lvi.iItem = numitems;
-							ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-							numitems++;
-							lvi.pszText = buf;
-							lvi.iItem = numitems;
-							ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-							numitems++;
+							LogItem("WriteProcessMemory Error ResolveProcess address: %08X", rawaddr);
+							LogItem(NULL);
 						}
 						else
 						{
@@ -6809,22 +5438,9 @@ BOOL ResolveProcess(HANDLE thisProcess)
 			}
 			n = 0;
 		}
-		ultoa(NumNanos, c, 10);
-		sprintf(ibuf, "%s INT3 processed...", c);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		ultoa(resolvednanos, c, 10);
-		sprintf(ibuf, "%s INT3 resolved...", c);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = "Done.";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("%lu INT3 processed...", (DWORD)NumNanos);
+		LogItem("%lu INT3 resolved...", resolvednanos);
+		LogItem("Done.");
 		if (RNano)
 		{
 			delete[] RNano;
@@ -6848,10 +5464,7 @@ BOOL HideDebugger(HANDLE thisProcess, HANDLE thisThread)
 	GetThreadContext(thisThread, &Context);
 	if (!GetThreadSelectorEntry(thisThread, Context.SegFs, &sel))
 	{
-		lvi.pszText = "Context error! GetThreadSelectorEntry Failed";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Context error! GetThreadSelectorEntry Failed");
 		return FALSE;
 	}
 	fsbase = (sel.HighWord.Bytes.BaseHi << 8 | sel.HighWord.Bytes.BaseMid) << 16 |
@@ -6859,21 +5472,8 @@ BOOL HideDebugger(HANDLE thisProcess, HANDLE thisThread)
 	if (!ReadProcessMemory(thisProcess, (LPCVOID)(fsbase + 0x30), &RVApeb, 4, &numread) ||
 		numread != 4)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error HideDebugger address: %08X", (fsbase + 0x30));
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error HideDebugger address: %08X", (fsbase + 0x30));
+		LogItem(NULL);
 		return FALSE;
 	}
 	//PEB!IsDebugged
@@ -6884,42 +5484,16 @@ BOOL HideDebugger(HANDLE thisProcess, HANDLE thisThread)
 	if (!ReadProcessMemory(thisProcess, (LPCVOID)(RVApeb + 2), &beingDebugged, 2, &numread) ||
 		numread != 2)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error HideDebugger address: %08X", (RVApeb + 2));
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error HideDebugger address: %08X", (RVApeb + 2));
+		LogItem(NULL);
 		return FALSE;
 	}
 	beingDebugged = 0;
 	if (!WriteProcessMemory(thisProcess, (LPVOID)(RVApeb + 2), &beingDebugged, 2, &numread) ||
 		numread != 2)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "WriteProcessMemory Error HideDebugger address: %08X", (RVApeb + 2));
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("WriteProcessMemory Error HideDebugger address: %08X", (RVApeb + 2));
+		LogItem(NULL);
 		return FALSE;
 	}
 	//PEB!NtGlobalFlags
@@ -6930,42 +5504,16 @@ BOOL HideDebugger(HANDLE thisProcess, HANDLE thisThread)
 	if (!ReadProcessMemory(thisProcess, (LPCVOID)(RVApeb + 104), &beingDebugged, 2, &numread) ||
 		numread != 2)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error HideDebugger address: %08X", (RVApeb + 104));
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error HideDebugger address: %08X", (RVApeb + 104));
+		LogItem(NULL);
 		return FALSE;
 	}
 	beingDebugged = 0;
 	if (!WriteProcessMemory(thisProcess, (LPVOID)(RVApeb + 104), &beingDebugged, 2, &numread) ||
 		numread != 2)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "WriteProcessMemory Error HideDebugger address: %08X", (RVApeb + 104));
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("WriteProcessMemory Error HideDebugger address: %08X", (RVApeb + 104));
+		LogItem(NULL);
 		return FALSE;
 	}
 	return TRUE;
@@ -6980,22 +5528,14 @@ static DWORD DebugQueryProcessOptions(HANDLE hProcess)
 		hNTModule = GetModuleHandle((LPCSTR)"ntdll.dll");
 		if (!hNTModule)
 		{
-			sprintf(b, "Module: ntdll.dll; Function: GetModuleHandle Failed");
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("Module: ntdll.dll; Function: GetModuleHandle Failed");
 			return GetLastError();
 		}
 		g_NtQueryInformationProcess =
 			(NTQUERYINFORMATIONPROCESS)GetProcAddress(hNTModule, (LPCSTR)"NtQueryInformationProcess");
 		if (!g_NtQueryInformationProcess)
 		{
-			sprintf(b, "GetProcAddress Failed; NtQueryInformationProcess");
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("GetProcAddress Failed; NtQueryInformationProcess");
 			return GetLastError();
 		}
 	}
@@ -7011,22 +5551,14 @@ static DWORD DebugSetProcessOptions(HANDLE hProcess)
 		hNTModule = GetModuleHandle((LPCSTR)"ntdll.dll");
 		if (!hNTModule)
 		{
-			sprintf(b, "Module: ntdll.dll; Function: GetModuleHandle Failed");
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("Module: ntdll.dll; Function: GetModuleHandle Failed");
 			return GetLastError();
 		}
 		g_NtSetInformationProcess =
 			(NTSETINFORMATIONPROCESS)GetProcAddress(hNTModule, (LPCSTR)"NtSetInformationProcess");
 		if (!g_NtSetInformationProcess)
 		{
-			sprintf(b, "GetProcAddress Failed; NtSetInformationProcess");
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("GetProcAddress Failed; NtSetInformationProcess");
 			return GetLastError();
 		}
 	}
@@ -7045,21 +5577,8 @@ BOOL ClearSWBPS(HANDLE thisProcess)
 				if (!WriteProcessMemory(pi.hProcess, (LPVOID)SWBPExceptionAddress[i], &scanbyte[i],
 					sizeof(BYTE), &dwWritten))
 				{
-					buf = 0;
-					FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-						FORMAT_MESSAGE_FROM_SYSTEM |
-						FORMAT_MESSAGE_IGNORE_INSERTS,
-						NULL, GetLastError(), 0,
-						(LPSTR)&buf, 0, NULL);
-					sprintf(b, "WriteProcessMemory Error ClearSWBPS address: %p", SWBPExceptionAddress[i]);
-					lvi.pszText = (LPSTR)b;
-					lvi.iItem = numitems;
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
-					lvi.pszText = buf;
-					lvi.iItem = numitems;
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
+					LogItem("WriteProcessMemory Error ClearSWBPS address: %p", SWBPExceptionAddress[i]);
+					LogItem(NULL);
 					breaknow = TRUE;
 					break;
 				}
@@ -7070,21 +5589,8 @@ BOOL ClearSWBPS(HANDLE thisProcess)
 			if (!WriteProcessMemory(thisProcess, (LPVOID)SWBPExceptionAddress[i], &scanbyte[i],
 				sizeof(BYTE), &dwWritten))
 			{
-				buf = 0;
-				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL, GetLastError(), 0,
-					(LPSTR)&buf, 0, NULL);
-				sprintf(b, "WriteProcessMemory Error ClearSWBPS address: %p", SWBPExceptionAddress[i]);
-				lvi.pszText = (LPSTR)b;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				lvi.pszText = buf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("WriteProcessMemory Error ClearSWBPS address: %p", SWBPExceptionAddress[i]);
+				LogItem(NULL);
 				breaknow = TRUE;
 				break;
 			}
@@ -7108,21 +5614,8 @@ void Reset_EIP(HANDLE thisProcess, HANDLE thisThread, unsigned int indexSWBP)
 	if (!WriteProcessMemory(thisProcess, (LPVOID)SWBPExceptionAddress[indexSWBP], &scanbyte[indexSWBP],
 		sizeof(BYTE), &dwWritten))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "WriteProcessMemory Error Reset_EIP address: %p", SWBPExceptionAddress[indexSWBP]);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("WriteProcessMemory Error Reset_EIP address: %p", SWBPExceptionAddress[indexSWBP]);
+		LogItem(NULL);
 		breaknow = TRUE;
 		return;
 	}
@@ -7230,41 +5723,16 @@ BOOL DetermineStdHardwareFingerprint(HANDLE thisProcess, int errmode)
 		MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	if (dwBMVMAddress == NULL)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "VirtualAlloc Error DetermineStdHardwareFingerprint";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("VirtualAlloc Error DetermineStdHardwareFingerprint");
+		LogItem(NULL);
 		return FALSE;
 	}
 	// Read the Armadillo VM address space into our process memory
 	if (!ReadProcessMemory(thisProcess, dwArmVMAddress, dwBMVMAddress,
 		dwArmVMNSize, &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error DetermineStdHardwareFingerprint address: %p", dwArmVMAddress);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error DetermineStdHardwareFingerprint address: %p", dwArmVMAddress);
+		LogItem(NULL);
 		return FALSE;
 	}
 	dwFileSize = dwArmVMNSize;		//Size of search space
@@ -7278,10 +5746,7 @@ BOOL DetermineStdHardwareFingerprint(HANDLE thisProcess, int errmode)
 	{
 		if (errmode == 0)
 			return FALSE;
-		lvi.pszText = "Armadillo DATELASTRUN search string not found!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Armadillo DATELASTRUN search string not found!");
 		if (checkforerrors)
 		{
 			CreateDump(thisProcess, 1);
@@ -7314,10 +5779,7 @@ BOOL DetermineStdHardwareFingerprint(HANDLE thisProcess, int errmode)
 	{
 		if (errmode == 0)
 			return FALSE;
-		lvi.pszText = "Armadillo DATELASTRUN search string not found!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Armadillo DATELASTRUN search string not found!");
 		if (checkforerrors)
 		{
 			CreateDump(thisProcess, 1);
@@ -7347,10 +5809,7 @@ BOOL DetermineStdHardwareFingerprint(HANDLE thisProcess, int errmode)
 		}
 		if (dwOffset > dwFileSize)
 		{
-			lvi.pszText = "2nd CALL after DATELASTRUN not found!";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("2nd CALL after DATELASTRUN not found!");
 			if (checkforerrors)
 			{
 				CreateDump(thisProcess, 1);
@@ -7423,28 +5882,10 @@ BOOL DetermineStdHardwareFingerprint(HANDLE thisProcess, int errmode)
 		if (j <= 0)
 		{
 			// We have an error!
-			lvi.pszText = "Standard Fingerprint enabled";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			memset(ibuf, 0, sizeof(ibuf));
-			sprintf(ibuf, "error= %s", errtext);
-			lvi.pszText = (LPSTR)ibuf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			memset(ibuf, 0, sizeof(ibuf));
-			sprintf(ibuf, "Address: %08X", DwordRead);
-			lvi.pszText = (LPSTR)ibuf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			memset(ibuf, 0, sizeof(ibuf));
-			sprintf(ibuf, "Binary Code: %s", am.code);
-			lvi.pszText = (LPSTR)ibuf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("Standard Fingerprint enabled");
+			LogItem("error= %s", errtext);
+			LogItem("Address: %08X", DwordRead);
+			LogItem("Binary Code: %s", am.code);
 			return FALSE;
 		}
 		else
@@ -7458,32 +5899,15 @@ BOOL DetermineStdHardwareFingerprint(HANDLE thisProcess, int errmode)
 			}
 			else
 			{
-				buf = 0;
-				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL, GetLastError(), 0,
-					(LPSTR)&buf, 0, NULL);
-				sprintf(b, "WriteProcessMemory Error DetermineStdHardwareFingerprint address: %p", PvoidAddr);
-				lvi.pszText = (LPSTR)b;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				lvi.pszText = buf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("WriteProcessMemory Error DetermineStdHardwareFingerprint address: %p", PvoidAddr);
+				LogItem(NULL);
 				return FALSE;
 			}
 		}
 	}
 	memset(&hwfp, 0, sizeof(hwfp));
 	memcpy(&hwfp, &dwstdfp, sizeof(DWORD_PTR));
-	sprintf(ibuf, "Standard fingerprint enabled: %04X-%04X", hwfp.hwfp2, hwfp.hwfp1);
-	lvi.pszText = (LPSTR)ibuf;
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("Standard fingerprint enabled: %04X-%04X", hwfp.hwfp2, hwfp.hwfp1);
 	return TRUE;
 }
 
@@ -7497,41 +5921,16 @@ BOOL DetermineEnhHardwareFingerprint(HANDLE thisProcess, int errmode)
 		MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	if (dwBMVMAddress == NULL)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "VirtualAlloc Error DetermineEnhHardwareFingerprint";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("VirtualAlloc Error DetermineEnhHardwareFingerprint");
+		LogItem(NULL);
 		return FALSE;
 	}
 	// Read the Armadillo VM address space into our process memory
 	if (!ReadProcessMemory(thisProcess, dwArmVMAddress, dwBMVMAddress,
 		dwArmVMNSize, &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error DetermineEnhHardwareFingerprint address: %p", dwArmVMAddress);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error DetermineEnhHardwareFingerprint address: %p", dwArmVMAddress);
+		LogItem(NULL);
 		return FALSE;
 	}
 	dwFileSize = dwArmVMNSize;		//Size of search space
@@ -7545,10 +5944,7 @@ BOOL DetermineEnhHardwareFingerprint(HANDLE thisProcess, int errmode)
 	{
 		if (errmode == 0)
 			return FALSE;
-		lvi.pszText = "Armadillo FINGERPRINT search string not found!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Armadillo FINGERPRINT search string not found!");
 		if (checkforerrors)
 		{
 			CreateDump(thisProcess, 1);
@@ -7581,10 +5977,7 @@ BOOL DetermineEnhHardwareFingerprint(HANDLE thisProcess, int errmode)
 	{
 		if (errmode == 0)
 			return FALSE;
-		lvi.pszText = "Armadillo FINGERPRINT search string not found!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Armadillo FINGERPRINT search string not found!");
 		if (checkforerrors)
 		{
 			CreateDump(thisProcess, 1);
@@ -7614,10 +6007,7 @@ BOOL DetermineEnhHardwareFingerprint(HANDLE thisProcess, int errmode)
 		}
 		if (dwOffset > dwFileSize)
 		{
-			lvi.pszText = "2nd CALL after FINGERPRINT not found!";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("2nd CALL after FINGERPRINT not found!");
 			if (checkforerrors)
 			{
 				CreateDump(thisProcess, 1);
@@ -7688,28 +6078,10 @@ BOOL DetermineEnhHardwareFingerprint(HANDLE thisProcess, int errmode)
 		if (j <= 0)
 		{
 			// We have an error!
-			lvi.pszText = "Enhanced Fingerprint enabled";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			memset(ibuf, 0, sizeof(ibuf));
-			sprintf(ibuf, "error= %s", errtext);
-			lvi.pszText = (LPSTR)ibuf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			memset(ibuf, 0, sizeof(ibuf));
-			sprintf(ibuf, "Address: %08X", DwordRead);
-			lvi.pszText = (LPSTR)ibuf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			memset(ibuf, 0, sizeof(ibuf));
-			sprintf(ibuf, "Binary Code: %s", am.code);
-			lvi.pszText = (LPSTR)ibuf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("Enhanced Fingerprint enabled");
+			LogItem("error= %s", errtext);
+			LogItem("Address: %08X", DwordRead);
+			LogItem("Binary Code: %s", am.code);
 			return FALSE;
 		}
 		else
@@ -7723,32 +6095,15 @@ BOOL DetermineEnhHardwareFingerprint(HANDLE thisProcess, int errmode)
 			}
 			else
 			{
-				buf = 0;
-				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL, GetLastError(), 0,
-					(LPSTR)&buf, 0, NULL);
-				sprintf(b, "WriteProcessMemory Error DetermineEnhHardwareFingerprint address: %p", PvoidAddr);
-				lvi.pszText = (LPSTR)b;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				lvi.pszText = buf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("WriteProcessMemory Error DetermineEnhHardwareFingerprint address: %p", PvoidAddr);
+				LogItem(NULL);
 				return FALSE;
 			}
 		}
 	}
 	memset(&hwfp, 0, sizeof(hwfp));
 	memcpy(&hwfp, &dwenhfp, sizeof(DWORD_PTR));
-	sprintf(ibuf, "Enhanced fingerprint enabled: %04X-%04X", hwfp.hwfp2, hwfp.hwfp1);
-	lvi.pszText = (LPSTR)ibuf;
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("Enhanced fingerprint enabled: %04X-%04X", hwfp.hwfp2, hwfp.hwfp1);
 	return TRUE;
 }
 
@@ -7774,14 +6129,8 @@ BOOL DetermineSerialFingerprint(HANDLE thisProcess, int errmode)
 		{
 			if (errmode == 0)
 				return FALSE;
-			lvi.pszText = "Armadillo SERIAL FINGERPRINT search string not found";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = "Earlier releases i.e. v3.x,4.x can be safely ignored!";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("Armadillo SERIAL FINGERPRINT search string not found");
+			LogItem("Earlier releases i.e. v3.x,4.x can be safely ignored!");
 			if (checkforerrors)
 			{
 				CreateDump(thisProcess, 1);
@@ -7852,21 +6201,8 @@ BOOL DetermineSerialFingerprint(HANDLE thisProcess, int errmode)
 		goto CONTHWFP;
 	}
 HWFPERROR:
-	buf = 0;
-	FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-		FORMAT_MESSAGE_FROM_SYSTEM |
-		FORMAT_MESSAGE_IGNORE_INSERTS,
-		NULL, GetLastError(), 0,
-		(LPSTR)&buf, 0, NULL);
-	sprintf(b, "WriteProcessMemory Error DetermineSerialFingerprint address: %p", PvoidAddr);
-	lvi.pszText = (LPSTR)b;
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	lvi.pszText = buf;
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("WriteProcessMemory Error DetermineSerialFingerprint address: %p", PvoidAddr);
+	LogItem(NULL);
 	return FALSE;
 CONTHWFP:
 	memset(&hwfp, 0, sizeof(hwfp));
@@ -7878,11 +6214,7 @@ CONTHWFP:
 	{
 		memcpy(&hwfp, &dwenhfp, sizeof(DWORD_PTR));
 	}
-	sprintf(ibuf, "Serial fingerprint enabled: %04X-%04X", hwfp.hwfp2, hwfp.hwfp1);
-	lvi.pszText = (LPSTR)ibuf;
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("Serial fingerprint enabled: %04X-%04X", hwfp.hwfp2, hwfp.hwfp1);
 	return TRUE;
 }
 
@@ -7895,21 +6227,8 @@ BOOL DetermineStrategicCodeSplicing(HANDLE thisProcess, HANDLE thisThread)
 	if (!ReadProcessMemory(thisProcess, PvoidAddr, &PvoidRead,
 		sizeof(DWORD_PTR), &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error DetermineStrategicCodeSplicing address: %p", PvoidAddr);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error DetermineStrategicCodeSplicing address: %p", PvoidAddr);
+		LogItem(NULL);
 		return FALSE;
 	}
 	// See if the Call was made from Arm VM
@@ -7935,21 +6254,8 @@ BOOL DetermineStrategicCodeSplicing(HANDLE thisProcess, HANDLE thisThread)
 	if (!ReadProcessMemory(thisProcess, PvoidAddr, &PvoidRead,
 		sizeof(DWORD_PTR), &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error DetermineStrategicCodeSplicing address: %p", PvoidAddr);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error DetermineStrategicCodeSplicing address: %p", PvoidAddr);
+		LogItem(NULL);
 		return FALSE;
 	}
 	// Note: The strategic code splicing address requested is not
@@ -7963,21 +6269,8 @@ BOOL DetermineStrategicCodeSplicing(HANDLE thisProcess, HANDLE thisThread)
 		if (!ReadProcessMemory(thisProcess, (LPVOID)PvoidAddr, &PvoidRead,
 			sizeof(DWORD_PTR), &dwRead))
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			sprintf(b, "ReadProcessMemory Error DetermineStrategicCodeSplicing address: %p", PvoidAddr);
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("ReadProcessMemory Error DetermineStrategicCodeSplicing address: %p", PvoidAddr);
+			LogItem(NULL);
 			return FALSE;
 		}
 		// Is the size >= 10000 hex
@@ -7990,21 +6283,8 @@ BOOL DetermineStrategicCodeSplicing(HANDLE thisProcess, HANDLE thisThread)
 			if (!ReadProcessMemory(thisProcess, (LPVOID)PvoidAddr, &PvoidRead,
 				sizeof(DWORD_PTR), &dwRead))
 			{
-				buf = 0;
-				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL, GetLastError(), 0,
-					(LPSTR)&buf, 0, NULL);
-				sprintf(b, "ReadProcessMemory Error DetermineStrategicCodeSplicing address: %p", PvoidAddr);
-				lvi.pszText = (LPSTR)b;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				lvi.pszText = buf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("ReadProcessMemory Error DetermineStrategicCodeSplicing address: %p", PvoidAddr);
+				LogItem(NULL);
 				return FALSE;
 			}
 			if ((SIZE_T)PvoidRead == MEM_RESERVE)
@@ -8014,21 +6294,8 @@ BOOL DetermineStrategicCodeSplicing(HANDLE thisProcess, HANDLE thisThread)
 				if (!ReadProcessMemory(thisProcess, (LPVOID)PvoidAddr, &PvoidRead,
 					sizeof(DWORD_PTR), &dwRead))
 				{
-					buf = 0;
-					FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-						FORMAT_MESSAGE_FROM_SYSTEM |
-						FORMAT_MESSAGE_IGNORE_INSERTS,
-						NULL, GetLastError(), 0,
-						(LPSTR)&buf, 0, NULL);
-					sprintf(b, "ReadProcessMemory Error DetermineStrategicCodeSplicing address: %p", PvoidAddr);
-					lvi.pszText = (LPSTR)b;
-					lvi.iItem = numitems;
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
-					lvi.pszText = buf;
-					lvi.iItem = numitems;
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
+					LogItem("ReadProcessMemory Error DetermineStrategicCodeSplicing address: %p", PvoidAddr);
+					LogItem(NULL);
 					return FALSE;
 				}
 				// We have code splicing. Is redirection option chosen?
@@ -8042,15 +6309,8 @@ BOOL DetermineStrategicCodeSplicing(HANDLE thisProcess, HANDLE thisThread)
 						if (!VirtualProtectEx(thisProcess, (LPVOID)AdataVMaddress,
 							AdataVMsize, PERWProtect, &PEOldProtect))
 						{
-							lvi.pszText = "VirtualProtect error on .adata section";
-							lvi.iItem = numitems;
-							ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-							numitems++;
-							sprintf(b, "Address: %p for strategic code splicing", AdataVMaddress);
-							lvi.pszText = (LPSTR)b;
-							lvi.iItem = numitems;
-							ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-							numitems++;
+							LogItem("VirtualProtect error on .adata section");
+							LogItem("Address: %p for strategic code splicing", AdataVMaddress);
 							return FALSE;
 						}
 						// Allocate some zero memory for operation
@@ -8058,39 +6318,14 @@ BOOL DetermineStrategicCodeSplicing(HANDLE thisProcess, HANDLE thisThread)
 							MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 						if (dwZMVMAddress == NULL)
 						{
-							buf = 0;
-							FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-								FORMAT_MESSAGE_FROM_SYSTEM |
-								FORMAT_MESSAGE_IGNORE_INSERTS,
-								NULL, GetLastError(), 0,
-								(LPSTR)&buf, 0, NULL);
-							lvi.pszText = "VirtualAlloc Error DetermineStrategicCodeSplicing";
-							lvi.iItem = numitems;
-							ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-							numitems++;
-							lvi.pszText = buf;
-							lvi.iItem = numitems;
-							ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-							numitems++;
+							LogItem("VirtualAlloc Error DetermineStrategicCodeSplicing");
+							LogItem(NULL);
 						}
 						else if (!WriteProcessMemory(thisProcess, AdataVMaddress, dwZMVMAddress,
 							AdataVMsize, &dwWritten))
 						{
-							buf = 0;
-							FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-								FORMAT_MESSAGE_FROM_SYSTEM |
-								FORMAT_MESSAGE_IGNORE_INSERTS,
-								NULL, GetLastError(), 0,
-								(LPSTR)&buf, 0, NULL);
-							sprintf(b, "WriteProcessMemory Error DetermineStrategicCodeSplicing address: %p", AdataVMaddress);
-							lvi.pszText = (LPSTR)b;
-							lvi.iItem = numitems;
-							ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-							numitems++;
-							lvi.pszText = buf;
-							lvi.iItem = numitems;
-							ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-							numitems++;
+							LogItem("WriteProcessMemory Error DetermineStrategicCodeSplicing address: %p", AdataVMaddress);
+							LogItem(NULL);
 							FreeArmZMMemory();
 							return FALSE;
 						}
@@ -8134,21 +6369,8 @@ BOOL VerifyStrategicCodeSplicing(HANDLE thisProcess, HANDLE thisThread)
 	if (!ReadProcessMemory(thisProcess, PvoidAddr, &PvoidRead,
 		sizeof(DWORD_PTR), &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error VerifyStrategicCodeSplicing address: %p", PvoidAddr);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error VerifyStrategicCodeSplicing address: %p", PvoidAddr);
+		LogItem(NULL);
 		return FALSE;
 	}
 	// See if the Call was made from Arm VM
@@ -8174,21 +6396,8 @@ BOOL VerifyStrategicCodeSplicing(HANDLE thisProcess, HANDLE thisThread)
 	if (!ReadProcessMemory(thisProcess, (LPVOID)PvoidAddr, &PvoidRead,
 		sizeof(DWORD_PTR), &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error VerifyStrategicCodeSplicing address: %p", PvoidAddr);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error VerifyStrategicCodeSplicing address: %p", PvoidAddr);
+		LogItem(NULL);
 		return FALSE;
 	}
 	if ((SIZE_T)PvoidRead == CSOSize)
@@ -8198,21 +6407,8 @@ BOOL VerifyStrategicCodeSplicing(HANDLE thisProcess, HANDLE thisThread)
 		if (!ReadProcessMemory(thisProcess, (LPVOID)PvoidAddr, &PvoidRead,
 			sizeof(DWORD_PTR), &dwRead))
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			sprintf(b, "ReadProcessMemory Error VerifyStrategicCodeSplicing address: %p", PvoidAddr);
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("ReadProcessMemory Error VerifyStrategicCodeSplicing address: %p", PvoidAddr);
+			LogItem(NULL);
 			return FALSE;
 		}
 		// If not, then previous allocated memory could be low-mem address
@@ -8224,21 +6420,8 @@ BOOL VerifyStrategicCodeSplicing(HANDLE thisProcess, HANDLE thisThread)
 			if (!ReadProcessMemory(thisProcess, (LPVOID)PvoidAddr, &PvoidRead,
 				sizeof(DWORD_PTR), &dwRead))
 			{
-				buf = 0;
-				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL, GetLastError(), 0,
-					(LPSTR)&buf, 0, NULL);
-				sprintf(b, "ReadProcessMemory Error VerifyStrategicCodeSplicing address: %p", PvoidAddr);
-				lvi.pszText = (LPSTR)b;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				lvi.pszText = buf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("ReadProcessMemory Error VerifyStrategicCodeSplicing address: %p", PvoidAddr);
+				LogItem(NULL);
 				return FALSE;
 			}
 			if ((SIZE_T)PvoidRead == MEM_COMMIT)
@@ -8248,80 +6431,33 @@ BOOL VerifyStrategicCodeSplicing(HANDLE thisProcess, HANDLE thisThread)
 				if (!ReadProcessMemory(thisProcess, (LPVOID)PvoidAddr, &PvoidRead,
 					sizeof(DWORD_PTR), &dwRead))
 				{
-					buf = 0;
-					FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-						FORMAT_MESSAGE_FROM_SYSTEM |
-						FORMAT_MESSAGE_IGNORE_INSERTS,
-						NULL, GetLastError(), 0,
-						(LPSTR)&buf, 0, NULL);
-					sprintf(b, "ReadProcessMemory Error VerifyStrategicCodeSplicing address: %p", PvoidAddr);
-					lvi.pszText = (LPSTR)b;
-					lvi.iItem = numitems;
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
-					lvi.pszText = buf;
-					lvi.iItem = numitems;
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
+					LogItem("ReadProcessMemory Error VerifyStrategicCodeSplicing address: %p", PvoidAddr);
+					LogItem(NULL);
 					return FALSE;
 				}
 				// We have code splicing
 				if ((SIZE_T)PvoidRead == PAGE_EXECUTE_READWRITE)
 				{
-					lvi.pszText = (LPSTR)isep;
-					lvi.iItem = numitems;
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
+					LogItem("%s", isep);
 					if (redirectsplicing)
 					{
-						lvi.pszText = "Strategic Code Splicing Disabled!";
-						lvi.iItem = numitems;
-						ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-						numitems++;
-						lvi.pszText = "Code Splicing Section: .adata";
-						lvi.iItem = numitems;
-						ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-						numitems++;
+						LogItem("Strategic Code Splicing Disabled!");
+						LogItem("Code Splicing Section: .adata");
 					}
 					else
 					{
-						lvi.pszText = "Strategic Code Splicing Enabled!";
-						lvi.iItem = numitems;
-						ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-						numitems++;
-						lvi.pszText = "Code Splicing Section: .text";
-						lvi.iItem = numitems;
-						ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-						numitems++;
+						LogItem("Strategic Code Splicing Enabled!");
+						LogItem("Code Splicing Section: .text");
 					}
-					sprintf(ibuf, "Old VMaddress: %p", CSOAddress);
-					lvi.pszText = (LPSTR)ibuf;
-					lvi.iItem = numitems;
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
-					sprintf(ibuf, "Old VMsize: %08X", CSOSize);
-					lvi.pszText = (LPSTR)ibuf;
-					lvi.iItem = numitems;
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
+					LogItem("Old VMaddress: %p", CSOAddress);
+					LogItem("Old VMsize: %08X", CSOSize);
 					if (redirectsplicing)
 					{
-						sprintf(ibuf, "New VMaddress: %p", CSAddress);
-						lvi.pszText = (LPSTR)ibuf;
-						lvi.iItem = numitems;
-						ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-						numitems++;
-						sprintf(ibuf, "New VMsize: %08X", CSSize);
-						lvi.pszText = (LPSTR)ibuf;
-						lvi.iItem = numitems;
-						ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-						numitems++;
+						LogItem("New VMaddress: %p", CSAddress);
+						LogItem("New VMsize: %08X", CSSize);
 						if (CSOSize > CSSize)
 						{
-							lvi.pszText = "Warning: Old VM size > New VM size";
-							lvi.iItem = numitems;
-							ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-							numitems++;
+							LogItem("Warning: Old VM size > New VM size");
 						}
 						// Return [Section] of our choice in Register EAX return value
 						// 1st choice is .adata section
@@ -8358,10 +6494,7 @@ BOOL DetermineIATVariableRedirection(HANDLE thisProcess, int errmode)
 	{
 		if (errmode == 0)
 			return FALSE;
-		lvi.pszText = "Armadillo variable redirection search string not found";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Armadillo variable redirection search string not found");
 		if (checkforerrors)
 		{
 			CreateDump(thisProcess, 1);
@@ -8383,21 +6516,8 @@ BOOL DetermineIATVariableRedirection(HANDLE thisProcess, int errmode)
 	if (!ReadProcessMemory(thisProcess, (LPVOID)PvoidAddr, &IATREDIVARREAD,
 		sizeof(DWORD_PTR), &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error DetermineIATVariableRedirection address: %p", PvoidAddr);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error DetermineIATVariableRedirection address: %p", PvoidAddr);
+		LogItem(NULL);
 		return FALSE;
 	}
 	//Replace variable dword pointer with 0's
@@ -8406,62 +6526,22 @@ BOOL DetermineIATVariableRedirection(HANDLE thisProcess, int errmode)
 		if (!ReadProcessMemory(thisProcess, (LPVOID)IATREDIVARREAD, &PvoidRead,
 			sizeof(DWORD_PTR), &dwRead))
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			sprintf(b, "ReadProcessMemory Error DetermineIATVariableRedirection address: %p", IATREDIVARREAD);
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("ReadProcessMemory Error DetermineIATVariableRedirection address: %p", IATREDIVARREAD);
+			LogItem(NULL);
 			return FALSE;
 		}
 		if (!WriteProcessMemory(thisProcess, IATREDIVARREAD, &IATREDIVARWRITE,
 			sizeof(DWORD_PTR), &dwWritten))
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			sprintf(b, "WriteProcessMemory Error DetermineIATVariableRedirection address: %p", IATREDIVARREAD);
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("WriteProcessMemory Error DetermineIATVariableRedirection address: %p", IATREDIVARREAD);
+			LogItem(NULL);
 			return FALSE;
 		}
 		variableredirectfound = TRUE;
-		lvi.pszText = (LPSTR)isep;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = "IAT Variable Redirection Disabled!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		sprintf(ibuf, "VM address: %08X", dwBMVMOffset);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		sprintf(ibuf, "VM variable: %p", IATREDIVARREAD);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("%s", isep);
+		LogItem("IAT Variable Redirection Disabled!");
+		LogItem("VM address: %08X", dwBMVMOffset);
+		LogItem("VM variable: %p", IATREDIVARREAD);
 	}
 	return TRUE;
 }
@@ -8474,41 +6554,16 @@ BOOL DetermineIATElimination(HANDLE thisProcess, int errmode)
 		MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	if (dwBMVMAddress == NULL)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "VirtualAlloc Error for IAT Elimination";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("VirtualAlloc Error for IAT Elimination");
+		LogItem(NULL);
 		return FALSE;
 	}
 	// Read the Armadillo VM address space into our process memory
 	if (!ReadProcessMemory(thisProcess, dwArmVMAddress, dwBMVMAddress,
 		dwArmVMNSize, &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error DetermineIATElimination address: %p", dwArmVMAddress);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error DetermineIATElimination address: %p", dwArmVMAddress);
+		LogItem(NULL);
 		return FALSE;
 	}
 	//Search for the IAT elimination
@@ -8523,10 +6578,7 @@ BOOL DetermineIATElimination(HANDLE thisProcess, int errmode)
 	{
 		if (errmode == 0)
 			return FALSE;
-		lvi.pszText = "Armadillo IAT elimination search string not found!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Armadillo IAT elimination search string not found!");
 		if (checkforerrors)
 		{
 			CreateDump(thisProcess, 1);
@@ -8550,21 +6602,8 @@ BOOL DetermineIATElimination(HANDLE thisProcess, int errmode)
 	if (!ReadProcessMemory(thisProcess, (LPVOID)PvoidAddr, &IATELIMREAD,
 		sizeof(DWORD_PTR), &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error DetermineIATElimination address: %p", PvoidAddr);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error DetermineIATElimination address: %p", PvoidAddr);
+		LogItem(NULL);
 		return FALSE;
 	}
 	if (IATELIMREAD != 0)
@@ -8587,10 +6626,7 @@ BOOL DetermineIATElimination(HANDLE thisProcess, int errmode)
 		// Search String not found! 
 		if (!sf)
 		{
-			lvi.pszText = "Armadillo IAT elimination search string not found!";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("Armadillo IAT elimination search string not found!");
 			if (checkforerrors)
 			{
 				CreateDump(thisProcess, 1);
@@ -8611,41 +6647,15 @@ BOOL DetermineIATElimination(HANDLE thisProcess, int errmode)
 		if (!ReadProcessMemory(thisProcess, (LPVOID)SWBPExceptionAddress[9], &scanbyte[9],
 			sizeof(BYTE), &dwRead))
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			sprintf(b, "ReadProcessMemory Error DetermineIATElimination address: %p", SWBPExceptionAddress[9]);
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("ReadProcessMemory Error DetermineIATElimination address: %p", SWBPExceptionAddress[9]);
+			LogItem(NULL);
 			return FALSE;
 		}
 		if (!WriteProcessMemory(thisProcess, (LPVOID)SWBPExceptionAddress[9], &replbyte[9],
 			sizeof(BYTE), &dwWritten))
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			sprintf(b, "WriteProcessMemory Error DetermineIATElimination address: %p", SWBPExceptionAddress[9]);
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("WriteProcessMemory Error DetermineIATElimination address: %p", SWBPExceptionAddress[9]);
+			LogItem(NULL);
 			return FALSE;
 		}
 	}
@@ -8660,41 +6670,16 @@ BOOL DetermineIATEliminationAlternate(HANDLE thisProcess, int errmode)
 		MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	if (dwBMVMAddress == NULL)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "VirtualAlloc Error for IAT Elimination";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("VirtualAlloc Error for IAT Elimination");
+		LogItem(NULL);
 		return FALSE;
 	}
 	// Read the Armadillo VM address space into our process memory
 	if (!ReadProcessMemory(thisProcess, dwArmVMAddress, dwBMVMAddress,
 		dwArmVMNSize, &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error DetermineIATEliminationAlternate address: %p", dwArmVMAddress);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error DetermineIATEliminationAlternate address: %p", dwArmVMAddress);
+		LogItem(NULL);
 		return FALSE;
 	}
 	//Search for the IAT elimination
@@ -8709,10 +6694,7 @@ BOOL DetermineIATEliminationAlternate(HANDLE thisProcess, int errmode)
 	{
 		if (errmode == 0)
 			return FALSE;
-		lvi.pszText = "Armadillo IAT elimination alternate search string not found!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Armadillo IAT elimination alternate search string not found!");
 		if (checkforerrors)
 		{
 			CreateDump(thisProcess, 1);
@@ -8734,21 +6716,8 @@ BOOL DetermineIATEliminationAlternate(HANDLE thisProcess, int errmode)
 	if (!ReadProcessMemory(thisProcess, (LPVOID)PvoidAddr, &IATELIMREAD,
 		sizeof(DWORD_PTR), &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error DetermineIATElimination address: %p", PvoidAddr);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error DetermineIATElimination address: %p", PvoidAddr);
+		LogItem(NULL);
 		return FALSE;
 	}
 	// Is it a JNE instruction?
@@ -8758,36 +6727,13 @@ BOOL DetermineIATEliminationAlternate(HANDLE thisProcess, int errmode)
 		if (!WriteProcessMemory(thisProcess, (LPVOID)PvoidAddr, &TWONOPS,
 			sizeof(WORD), &dwWritten))
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			sprintf(b, "WriteProcessMemory Error DetermineIATEliminationAlternate address: %p", PvoidAddr);
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("WriteProcessMemory Error DetermineIATEliminationAlternate address: %p", PvoidAddr);
+			LogItem(NULL);
 			return FALSE;
 		}
-		lvi.pszText = (LPSTR)isep;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = "IAT Elimination Alternate Disabled!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		sprintf(ibuf, "VM address: %p", PvoidAddr);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("%s", isep);
+		LogItem("IAT Elimination Alternate Disabled!");
+		LogItem("VM address: %p", PvoidAddr);
 	}
 	return TRUE;
 }
@@ -8810,10 +6756,7 @@ BOOL DetermineIATRedirection(HANDLE thisProcess, int errmode)
 	{
 		if (errmode == 0)
 			return FALSE;
-		lvi.pszText = "Armadillo fixed redirection search string not found!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Armadillo fixed redirection search string not found!");
 		if (checkforerrors)
 		{
 			CreateDump(thisProcess, 1);
@@ -8842,10 +6785,7 @@ BOOL DetermineIATRedirection(HANDLE thisProcess, int errmode)
 	{
 		if (errmode == 0)
 			return FALSE;
-		lvi.pszText = "Armadillo fixed redirection search string not found!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Armadillo fixed redirection search string not found!");
 		if (checkforerrors)
 		{
 			CreateDump(thisProcess, 1);
@@ -8871,21 +6811,8 @@ BOOL DetermineIATRedirection(HANDLE thisProcess, int errmode)
 	if (!ReadProcessMemory(thisProcess, (LPVOID)PvoidAddr, &IATREDIREAD,
 		sizeof(DWORD_PTR), &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error DetermineIATRedirection address: %p", PvoidAddr);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error DetermineIATRedirection address: %p", PvoidAddr);
+		LogItem(NULL);
 		return FALSE;
 	}
 	if (IATREDIREAD != 0)
@@ -8904,21 +6831,8 @@ BOOL DetermineIATRedirection(HANDLE thisProcess, int errmode)
 		if (!ReadProcessMemory(thisProcess, (LPVOID)PvoidAddr, &IATREDIREAD,
 			sizeof(DWORD_PTR), &dwRead))
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			sprintf(b, "ReadProcessMemory Error DetermineIATRedirection address: %p", PvoidAddr);
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("ReadProcessMemory Error DetermineIATRedirection address: %p", PvoidAddr);
+			LogItem(NULL);
 			return FALSE;
 		}
 		if (IATREDIREAD != 0)
@@ -8927,36 +6841,13 @@ BOOL DetermineIATRedirection(HANDLE thisProcess, int errmode)
 			if (!WriteProcessMemory(thisProcess, (LPVOID)PvoidAddr, &retnbyte,
 				sizeof(BYTE), &dwWritten))
 			{
-				buf = 0;
-				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL, GetLastError(), 0,
-					(LPSTR)&buf, 0, NULL);
-				sprintf(b, "WriteProcessMemory Error DetermineIATRedirection address: %p", PvoidAddr);
-				lvi.pszText = (LPSTR)b;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				lvi.pszText = buf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("WriteProcessMemory Error DetermineIATRedirection address: %p", PvoidAddr);
+				LogItem(NULL);
 				return FALSE;
 			}
-			lvi.pszText = (LPSTR)isep;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = "IAT Fixed Redirection Disabled!";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			sprintf(ibuf, "VM address: %08X", dwBMVMOffset);
-			lvi.pszText = (LPSTR)ibuf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("%s", isep);
+			LogItem("IAT Fixed Redirection Disabled!");
+			LogItem("VM address: %08X", dwBMVMOffset);
 		}
 	}
 	return TRUE;
@@ -8979,10 +6870,7 @@ BOOL DetermineIATRedirectionAlternate(HANDLE thisProcess, int errmode)
 			checkredirect = TRUE;
 			return FALSE;
 		}
-		lvi.pszText = "Armadillo IAT redirection search string not found!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Armadillo IAT redirection search string not found!");
 		if (checkforerrors)
 		{
 			CreateDump(thisProcess, 1);
@@ -9004,21 +6892,8 @@ BOOL DetermineIATRedirectionAlternate(HANDLE thisProcess, int errmode)
 	if (!ReadProcessMemory(thisProcess, (LPVOID)PvoidAddr, &IATREDIREAD,
 		sizeof(DWORD_PTR), &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error DetermineIATRedirectionAlternate address: %p", PvoidAddr);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error DetermineIATRedirectionAlternate address: %p", PvoidAddr);
+		LogItem(NULL);
 		return FALSE;
 	}
 	if (IATREDIREAD != 0)
@@ -9028,41 +6903,14 @@ BOOL DetermineIATRedirectionAlternate(HANDLE thisProcess, int errmode)
 		if (!WriteProcessMemory(thisProcess, IATREDIREAD, &newvalue,
 			sizeof(DWORD_PTR), &dwWritten))
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			sprintf(b, "WriteProcessMemory Error DetermineIATRedirectionAlternate address: %p", IATREDIREAD);
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("WriteProcessMemory Error DetermineIATRedirectionAlternate address: %p", IATREDIREAD);
+			LogItem(NULL);
 			return FALSE;
 		}
-		lvi.pszText = (LPSTR)isep;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = "IAT Fixed Redirection Disabled!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		sprintf(ibuf, "VM address: %08X", dwBMVMOffset);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		sprintf(ibuf, "VM variable: %p", IATREDIREAD);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("%s", isep);
+		LogItem("IAT Fixed Redirection Disabled!");
+		LogItem("VM address: %08X", dwBMVMOffset);
+		LogItem("VM variable: %p", IATREDIREAD);
 	}
 	return TRUE;
 }
@@ -9080,21 +6928,8 @@ BOOL DoIATElimination(HANDLE thisProcess)
 	if (!ReadProcessMemory(thisProcess, (LPVOID)PvoidAddr, &IATELIMREAD,
 		sizeof(DWORD_PTR), &dwRead))
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		sprintf(b, "ReadProcessMemory Error DoIATElimination address: %p", PvoidAddr);
-		lvi.pszText = (LPSTR)b;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("ReadProcessMemory Error DoIATElimination address: %p", PvoidAddr);
+		LogItem(NULL);
 		return FALSE;
 	}
 	// IAT elimination
@@ -9108,21 +6943,8 @@ BOOL DoIATElimination(HANDLE thisProcess)
 			if (!VirtualProtectEx(thisProcess, Data1VMaddress,
 				Data1VMsize, PERWProtect, &PEOldProtect))
 			{
-				buf = 0;
-				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL, GetLastError(), 0,
-					(LPSTR)&buf, 0, NULL);
-				sprintf(b, "VirtualProtectEx Error DoIATElimination address: %p", Data1VMaddress);
-				lvi.pszText = (LPSTR)b;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				lvi.pszText = buf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("VirtualProtectEx Error DoIATElimination address: %p", Data1VMaddress);
+				LogItem(NULL);
 				return FALSE;
 			}
 			// Allocate some zero memory for operation (15% of actual size or 6000 bytes)
@@ -9136,40 +6958,15 @@ BOOL DoIATElimination(HANDLE thisProcess)
 				MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 			if (dwZMVMAddress == NULL)
 			{
-				buf = 0;
-				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL, GetLastError(), 0,
-					(LPSTR)&buf, 0, NULL);
-				lvi.pszText = "VirtualAlloc error .data1 section DoIATElimination";
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				lvi.pszText = buf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("VirtualAlloc error .data1 section DoIATElimination");
+				LogItem(NULL);
 				return FALSE;
 			}
 			if (!WriteProcessMemory(thisProcess, Data1NVMaddress, dwZMVMAddress,
 				Data1NVMsize, &dwWritten))
 			{
-				buf = 0;
-				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL, GetLastError(), 0,
-					(LPSTR)&buf, 0, NULL);
-				sprintf(b, "WriteProcessMemory Error DoIATElimination address: %p", Data1NVMaddress);
-				lvi.pszText = (LPSTR)b;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				lvi.pszText = buf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("WriteProcessMemory Error DoIATElimination address: %p", Data1NVMaddress);
+				LogItem(NULL);
 				FreeArmZMMemory();
 				return FALSE;
 			}
@@ -9183,21 +6980,8 @@ BOOL DoIATElimination(HANDLE thisProcess)
 			if (!VirtualProtectEx(thisProcess, (LPVOID)IdataVMaddress,
 				IdataVMsize, PERWProtect, &PEOldProtect))
 			{
-				buf = 0;
-				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL, GetLastError(), 0,
-					(LPSTR)&buf, 0, NULL);
-				sprintf(b, "VirtualProtectEx Error DoIATElimination address: %p", IdataVMaddress);
-				lvi.pszText = (LPSTR)b;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				lvi.pszText = buf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("VirtualProtectEx Error DoIATElimination address: %p", IdataVMaddress);
+				LogItem(NULL);
 				return FALSE;
 			}
 			// Allocate some zero memory for operation
@@ -9205,40 +6989,15 @@ BOOL DoIATElimination(HANDLE thisProcess)
 				MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 			if (dwZMVMAddress == NULL)
 			{
-				buf = 0;
-				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL, GetLastError(), 0,
-					(LPSTR)&buf, 0, NULL);
-				lvi.pszText = "VirtualAlloc error .idata section DoIATElimination";
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				lvi.pszText = buf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("VirtualAlloc error .idata section DoIATElimination");
+				LogItem(NULL);
 				return FALSE;
 			}
 			if (!WriteProcessMemory(thisProcess, IdataVMaddress, dwZMVMAddress,
 				IdataVMsize, &dwWritten))
 			{
-				buf = 0;
-				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL, GetLastError(), 0,
-					(LPSTR)&buf, 0, NULL);
-				sprintf(b, "WriteProcessMemory Error DoIATElimination address: %p", IdataVMaddress);
-				lvi.pszText = (LPSTR)b;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				lvi.pszText = buf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("WriteProcessMemory Error DoIATElimination address: %p", IdataVMaddress);
+				LogItem(NULL);
 				FreeArmZMMemory();
 				return FALSE;
 			}
@@ -9252,21 +7011,8 @@ BOOL DoIATElimination(HANDLE thisProcess)
 			if (!VirtualProtectEx(thisProcess, BssVMaddress,
 				BssVMsize, PERWProtect, &PEOldProtect))
 			{
-				buf = 0;
-				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL, GetLastError(), 0,
-					(LPSTR)&buf, 0, NULL);
-				sprintf(b, "VirtualProtectEx Error DoIATElimination address: %p", BssVMaddress);
-				lvi.pszText = (LPSTR)b;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				lvi.pszText = buf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("VirtualProtectEx Error DoIATElimination address: %p", BssVMaddress);
+				LogItem(NULL);
 				return FALSE;
 			}
 			// Allocate some zero memory for operation
@@ -9274,40 +7020,15 @@ BOOL DoIATElimination(HANDLE thisProcess)
 				MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 			if (dwZMVMAddress == NULL)
 			{
-				buf = 0;
-				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL, GetLastError(), 0,
-					(LPSTR)&buf, 0, NULL);
-				lvi.pszText = "VirtualAlloc error .bss section for IAT elimination";
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				lvi.pszText = buf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("VirtualAlloc error .bss section for IAT elimination");
+				LogItem(NULL);
 				return FALSE;
 			}
 			if (!WriteProcessMemory(thisProcess, BssVMaddress, dwZMVMAddress,
 				BssVMsize, &dwWritten))
 			{
-				buf = 0;
-				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL, GetLastError(), 0,
-					(LPSTR)&buf, 0, NULL);
-				sprintf(b, "WriteProcessMemory Error DoIATElimination address: %p", BssVMaddress);
-				lvi.pszText = (LPSTR)b;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				lvi.pszText = buf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("WriteProcessMemory Error DoIATElimination address: %p", BssVMaddress);
+				LogItem(NULL);
 				FreeArmZMMemory();
 				return FALSE;
 			}
@@ -9321,21 +7042,8 @@ BOOL DoIATElimination(HANDLE thisProcess)
 			if (!VirtualProtectEx(thisProcess, RelocVMaddress,
 				RelocVMsize, PERWProtect, &PEOldProtect))
 			{
-				buf = 0;
-				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL, GetLastError(), 0,
-					(LPSTR)&buf, 0, NULL);
-				sprintf(b, "VirtualProtectEx Error DoIATElimination address: %p", RelocVMaddress);
-				lvi.pszText = (LPSTR)b;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				lvi.pszText = buf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("VirtualProtectEx Error DoIATElimination address: %p", RelocVMaddress);
+				LogItem(NULL);
 				return FALSE;
 			}
 			// Allocate some zero memory for operation
@@ -9343,40 +7051,15 @@ BOOL DoIATElimination(HANDLE thisProcess)
 				MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 			if (dwZMVMAddress == NULL)
 			{
-				buf = 0;
-				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL, GetLastError(), 0,
-					(LPSTR)&buf, 0, NULL);
-				lvi.pszText = "VirtualAlloc error .reloc section for IAT elimination";
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				lvi.pszText = buf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("VirtualAlloc error .reloc section for IAT elimination");
+				LogItem(NULL);
 				return FALSE;
 			}
 			if (!WriteProcessMemory(thisProcess, RelocVMaddress, dwZMVMAddress,
 				RelocVMsize, &dwWritten))
 			{
-				buf = 0;
-				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL, GetLastError(), 0,
-					(LPSTR)&buf, 0, NULL);
-				sprintf(b, "WriteProcessMemory Error DoIATElimination address: %p", RelocVMaddress);
-				lvi.pszText = (LPSTR)b;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				lvi.pszText = buf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("WriteProcessMemory Error DoIATElimination address: %p", RelocVMaddress);
+				LogItem(NULL);
 				FreeArmZMMemory();
 				return FALSE;
 			}
@@ -9387,10 +7070,7 @@ BOOL DoIATElimination(HANDLE thisProcess)
 		else
 			// we have a problem finding an area to allocate eliminated/redirected Imports
 		{
-			lvi.pszText = "No usable PE section available for IAT elimination";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("No usable PE section available for IAT elimination");
 			return FALSE;
 		}
 		// Write our desired new section address value
@@ -9398,47 +7078,16 @@ BOOL DoIATElimination(HANDLE thisProcess)
 		if (!WriteProcessMemory(thisProcess, (LPVOID)PvoidAddr, &IATELIMREAD,
 			sizeof(DWORD_PTR), &dwWritten))
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			sprintf(b, "WriteProcessMemory Error DoIATElimination Address: %p", PvoidAddr);
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("WriteProcessMemory Error DoIATElimination Address: %p", PvoidAddr);
+			LogItem(NULL);
 			return FALSE;
 		}
 	IATDONE:
-		lvi.pszText = (LPSTR)isep;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = "IAT Elimination Disabled!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		sprintf(ibuf, "IAT elimination section: %s", c);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		sprintf(ibuf, "Old VMaddress: %p", IATELIMSAVE);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		sprintf(ibuf, "New VMaddress: %p", IATELIMREAD);
-		lvi.pszText = (LPSTR)ibuf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("%s", isep);
+		LogItem("IAT Elimination Disabled!");
+		LogItem("IAT elimination section: %s", c);
+		LogItem("Old VMaddress: %p", IATELIMSAVE);
+		LogItem("New VMaddress: %p", IATELIMREAD);
 	}
 	return TRUE;
 }
@@ -9882,40 +7531,16 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 	hModule = GetModuleHandleA((LPCSTR)"kernel32.dll");
 	if (!hModule)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "Module: kernel32.dll; Function: GetModuleHandle Failed";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Module: kernel32.dll; Function: GetModuleHandle Failed");
+		LogItem(NULL);
 		return FALSE;
 	}
 	// Find the proc address to the function we want
 	ProcAddr1 = (FARPROC)GetProcAddress(hModule, (LPCSTR)"VirtualAlloc");
 	if (!ProcAddr1)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "Function: VirtualAlloc; kernel32.DLL: GetProcAddress Failed";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Function: VirtualAlloc; kernel32.DLL: GetProcAddress Failed");
+		LogItem(NULL);
 		return FALSE;
 	}
 	else
@@ -9927,21 +7552,8 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 		if (!ReadProcessMemory(thisprocess, (LPVOID)SWBPExceptionAddress[1], &scanbyte[1],
 			sizeof(BYTE), &dwRead))
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			sprintf(b, "ReadProcessMemory Error VirtualAlloc address: %p", SWBPExceptionAddress[1]);
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("ReadProcessMemory Error VirtualAlloc address: %p", SWBPExceptionAddress[1]);
+			LogItem(NULL);
 			return FALSE;
 		}
 	}
@@ -9949,20 +7561,8 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 	ProcAddr2 = (FARPROC)GetProcAddress(hModule, (LPCSTR)"CreateFileA");
 	if (!ProcAddr2)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "Function: CreateFileA; kernel32.dll: GetProcAddress Failed";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Function: CreateFileA; kernel32.dll: GetProcAddress Failed");
+		LogItem(NULL);
 		return FALSE;
 	}
 	else
@@ -9974,21 +7574,8 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 		if (!ReadProcessMemory(thisprocess, (LPVOID)SWBPExceptionAddress[2], &scanbyte[2],
 			sizeof(BYTE), &dwRead))
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			sprintf(b, "ReadProcessMemory Error CreateFileA address: %p", SWBPExceptionAddress[2]);
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("ReadProcessMemory Error CreateFileA address: %p", SWBPExceptionAddress[2]);
+			LogItem(NULL);
 			return FALSE;
 		}
 	}
@@ -9996,20 +7583,8 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 	ProcAddr3 = (FARPROC)GetProcAddress(hModule, (LPCSTR)"WriteProcessMemory");
 	if (!ProcAddr3)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "Function: WriteProcessMemory; kernel32.dll: GetProcAddress Failed";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Function: WriteProcessMemory; kernel32.dll: GetProcAddress Failed");
+		LogItem(NULL);
 		return FALSE;
 	}
 	else
@@ -10021,21 +7596,8 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 		if (!ReadProcessMemory(thisprocess, (LPVOID)SWBPExceptionAddress[3], &scanbyte[3],
 			sizeof(BYTE), &dwRead))
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			sprintf(b, "ReadProcessMemory Error WriteProcessMemory address: %p", SWBPExceptionAddress[3]);
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("ReadProcessMemory Error WriteProcessMemory address: %p", SWBPExceptionAddress[3]);
+			LogItem(NULL);
 			return FALSE;
 		}
 	}
@@ -10043,20 +7605,8 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 	ProcAddr4 = (FARPROC)GetProcAddress(hModule, (LPCSTR)"GetModuleHandleA");
 	if (!ProcAddr4)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "Function: GetModuleHandleA; kernel32.dll: GetProcAddress Failed";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Function: GetModuleHandleA; kernel32.dll: GetProcAddress Failed");
+		LogItem(NULL);
 		return FALSE;
 	}
 	else
@@ -10068,21 +7618,8 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 		if (!ReadProcessMemory(thisprocess, (LPVOID)SWBPExceptionAddress[4], &scanbyte[4],
 			sizeof(BYTE), &dwRead))
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			sprintf(b, "ReadProcessMemory Error GetModuleHandleA address: %p", SWBPExceptionAddress[4]);
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("ReadProcessMemory Error GetModuleHandleA address: %p", SWBPExceptionAddress[4]);
+			LogItem(NULL);
 			return FALSE;
 		}
 	}
@@ -10092,20 +7629,8 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 		ProcAddr5 = (FARPROC)GetProcAddress(hModule, (LPCSTR)"WaitForDebugEvent");
 	if (!ProcAddr5)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "Function: WaitForDebugEvent; kernel32.dll: GetProcAddress Failed";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Function: WaitForDebugEvent; kernel32.dll: GetProcAddress Failed");
+		LogItem(NULL);
 		return FALSE;
 	}
 	else
@@ -10121,10 +7646,7 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 		// Search String not found! 
 		if (!sf)
 		{
-			lvi.pszText = "WaitForDebugEvent RETN search string not found!";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("WaitForDebugEvent RETN search string not found!");
 			return FALSE;
 		}
 		else
@@ -10138,41 +7660,15 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 		if (!ReadProcessMemory(thisprocess, (LPVOID)SWBPExceptionAddress[5], &scanbyte[5],
 			sizeof(BYTE), &dwRead))
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			sprintf(b, "ReadProcessMemory Error WaitForDebugEvent address: %p", SWBPExceptionAddress[5]);
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("ReadProcessMemory Error WaitForDebugEvent address: %p", SWBPExceptionAddress[5]);
+			LogItem(NULL);
 			return FALSE;
 		}
 		if (!WriteProcessMemory(thisprocess, (LPVOID)SWBPExceptionAddress[5], &replbyte[5],
 			sizeof(BYTE), &dwWritten))
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			sprintf(b, "WriteProcessMemory Error WaitForDebugEvent address: %p", SWBPExceptionAddress[5]);
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("WriteProcessMemory Error WaitForDebugEvent address: %p", SWBPExceptionAddress[5]);
+			LogItem(NULL);
 			return FALSE;
 		}
 	}
@@ -10180,20 +7676,8 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 	ProcAddr6 = (FARPROC)GetProcAddress(hModule, (LPCSTR)"CreateThread");
 	if (!ProcAddr6)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "Function: CreateThread; kernel32.dll: GetProcAddress Failed";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Function: CreateThread; kernel32.dll: GetProcAddress Failed");
+		LogItem(NULL);
 		return FALSE;
 	}
 	else
@@ -10205,21 +7689,8 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 		if (!ReadProcessMemory(thisprocess, (LPVOID)SWBPExceptionAddress[6], &scanbyte[6],
 			sizeof(BYTE), &dwRead))
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			sprintf(b, "ReadProcessMemory Error CreateThread address: %p", SWBPExceptionAddress[6]);
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("ReadProcessMemory Error CreateThread address: %p", SWBPExceptionAddress[6]);
+			LogItem(NULL);
 			return FALSE;
 		}
 	}
@@ -10227,20 +7698,8 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 	ProcAddr7 = (FARPROC)GetProcAddress(hModule, (LPCSTR)"OutputDebugStringA");
 	if (!ProcAddr7)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "Function: OutputDebugStringA; kernel32.dll: GetProcAddress Failed";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Function: OutputDebugStringA; kernel32.dll: GetProcAddress Failed");
+		LogItem(NULL);
 		return FALSE;
 	}
 	else
@@ -10252,41 +7711,15 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 		if (!ReadProcessMemory(thisprocess, (LPVOID)SWBPExceptionAddress[13], &scanbyte[13],
 			sizeof(BYTE), &dwRead))
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			sprintf(b, "ReadProcessMemory Error OutputDebugStringA address: %p", SWBPExceptionAddress[13]);
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("ReadProcessMemory Error OutputDebugStringA address: %p", SWBPExceptionAddress[13]);
+			LogItem(NULL);
 			return FALSE;
 		}
 		if (!WriteProcessMemory(thisprocess, (LPVOID)SWBPExceptionAddress[13], &replbyte[13],
 			sizeof(BYTE), &dwWritten))
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			sprintf(b, "WriteProcessMemory Error OutputDebugStringA address: %p", SWBPExceptionAddress[13]);
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("WriteProcessMemory Error OutputDebugStringA address: %p", SWBPExceptionAddress[13]);
+			LogItem(NULL);
 			return FALSE;
 		}
 	}
@@ -10297,20 +7730,8 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 		ProcAddr8 = (FARPROC)GetProcAddress(hModule, (LPCSTR)"OpenMutexA");
 		if (!ProcAddr8)
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			lvi.pszText = "Function: OpenMutexA; kernel32.dll: GetProcAddress Failed";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("Function: OpenMutexA; kernel32.dll: GetProcAddress Failed");
+			LogItem(NULL);
 			return FALSE;
 		}
 		else
@@ -10322,41 +7743,15 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 			if (!ReadProcessMemory(thisprocess, (LPVOID)SWBPExceptionAddress[10], &scanbyte[10],
 				sizeof(BYTE), &dwRead))
 			{
-				buf = 0;
-				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL, GetLastError(), 0,
-					(LPSTR)&buf, 0, NULL);
-				sprintf(b, "ReadProcessMemory Error OpenMutexA address: %p", SWBPExceptionAddress[10]);
-				lvi.pszText = (LPSTR)b;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				lvi.pszText = buf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("ReadProcessMemory Error OpenMutexA address: %p", SWBPExceptionAddress[10]);
+				LogItem(NULL);
 				return FALSE;
 			}
 			if (!WriteProcessMemory(thisprocess, (LPVOID)SWBPExceptionAddress[10], &replbyte[10],
 				sizeof(BYTE), &dwWritten))
 			{
-				buf = 0;
-				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL, GetLastError(), 0,
-					(LPSTR)&buf, 0, NULL);
-				sprintf(b, "WriteProcessMemory Error OpenMutexA address: %p", SWBPExceptionAddress[10]);
-				lvi.pszText = (LPSTR)b;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				lvi.pszText = buf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("WriteProcessMemory Error OpenMutexA address: %p", SWBPExceptionAddress[10]);
+				LogItem(NULL);
 				return FALSE;
 			}
 		}
@@ -10365,20 +7760,8 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 	ProcAddr12 = (FARPROC)GetProcAddress(hModule, (LPCSTR)"CreateFileMappingA");
 	if (!ProcAddr12)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "Function: CreateFileMappingA; kernel32.dll: GetProcAddress Failed";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Function: CreateFileMappingA; kernel32.dll: GetProcAddress Failed");
+		LogItem(NULL);
 		return FALSE;
 	}
 	else
@@ -10390,21 +7773,8 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 		if (!ReadProcessMemory(thisprocess, (LPVOID)SWBPExceptionAddress[15], &scanbyte[15],
 			sizeof(BYTE), &dwRead))
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			sprintf(b, "ReadProcessMemory Error CreateFileMappingA address: %p", SWBPExceptionAddress[15]);
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("ReadProcessMemory Error CreateFileMappingA address: %p", SWBPExceptionAddress[15]);
+			LogItem(NULL);
 			return FALSE;
 		}
 	}
@@ -10412,20 +7782,8 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 	ProcAddr13 = (FARPROC)GetProcAddress(hModule, (LPCSTR)"GetModuleFileNameA");
 	if (!ProcAddr13)
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "Function: GetModuleFileNameA; kernel32.dll: GetProcAddress Failed";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("Function: GetModuleFileNameA; kernel32.dll: GetProcAddress Failed");
+		LogItem(NULL);
 		return FALSE;
 	}
 	else
@@ -10437,21 +7795,8 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 		if (!ReadProcessMemory(thisprocess, (LPVOID)SWBPExceptionAddress[16], &scanbyte[16],
 			sizeof(BYTE), &dwRead))
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			sprintf(b, "ReadProcessMemory Error GetModuleFileNameA address: %p", SWBPExceptionAddress[16]);
-			lvi.pszText = (LPSTR)b;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("ReadProcessMemory Error GetModuleFileNameA address: %p", SWBPExceptionAddress[16]);
+			LogItem(NULL);
 			return FALSE;
 		}
 	}
@@ -10461,39 +7806,15 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 		hNTModule = GetModuleHandleA((LPCSTR)"ntdll.dll");
 		if (!hNTModule)
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			lvi.pszText = "Module: ntdll.dll; Function: GetModuleHandle Failed";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("Module: ntdll.dll; Function: GetModuleHandle Failed");
+			LogItem(NULL);
 			return FALSE;
 		}
 		ProcAddr9 = (FARPROC)GetProcAddress(hNTModule, (LPCSTR)"LdrLoadDll");
 		if (!ProcAddr9)
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			lvi.pszText = "Function: LdrLoadDll; NTDLL.DLL: GetProcAddress Failed";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("Function: LdrLoadDll; NTDLL.DLL: GetProcAddress Failed");
+			LogItem(NULL);
 			return FALSE;
 		}
 		else
@@ -10505,21 +7826,8 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 			if (!ReadProcessMemory(thisprocess, (LPVOID)SWBPExceptionAddress[11], &scanbyte[11],
 				sizeof(BYTE), &dwRead))
 			{
-				buf = 0;
-				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL, GetLastError(), 0,
-					(LPSTR)&buf, 0, NULL);
-				sprintf(b, "ReadProcessMemory Error LdrLoadDll address: %p", SWBPExceptionAddress[11]);
-				lvi.pszText = (LPSTR)b;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				lvi.pszText = buf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("ReadProcessMemory Error LdrLoadDll address: %p", SWBPExceptionAddress[11]);
+				LogItem(NULL);
 				return FALSE;
 			}
 		}
@@ -10534,23 +7842,14 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 	if (PdataVMaddress == 0x00000000)
 	{
 		// We have a problem
-		lvi.pszText = "No .pdata section found in PE header!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = "This doesn't appear to be an Armadillo protected program!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("No .pdata section found in PE header!");
+		LogItem("This doesn't appear to be an Armadillo protected program!");
 		return FALSE;
 	}
 	if (TextVMaddress == 0x00000000)
 	{
 		// We have a problem
-		lvi.pszText = "No .text section found in PE header!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("No .text section found in PE header!");
 		return FALSE;
 	}
 	PESectionAddress = TextVMaddress;
@@ -10563,14 +7862,8 @@ BOOL GetNeededAPIs(HANDLE thisprocess)
 	else
 	{
 		// We have a problem
-		lvi.pszText = "This doesn't appear to be an Armadillo protected program!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = "The EP is not within the range of PE section .text1";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("This doesn't appear to be an Armadillo protected program!");
+		LogItem("The EP is not within the range of PE section .text1");
 		return FALSE;
 	}
 	return TRUE;
@@ -10611,20 +7904,8 @@ unsigned __stdcall RunExe(void *)
 	// Adjust debug privileges on startup
 	if (!LoadSeDebugPrivilege())
 	{
-		buf = 0;
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), 0,
-			(LPSTR)&buf, 0, NULL);
-		lvi.pszText = "LoadSeDebugPrivilege Failed for the current process!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
-		lvi.pszText = buf;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("LoadSeDebugPrivilege Failed for the current process!");
+		LogItem(NULL);
 	}
 	// Create New Start in Folder for target executable based on buffer returned in Open dialog
 	memcpy(nbuf, buffer, (size_t)MAX_PATH);
@@ -10647,10 +7928,7 @@ unsigned __stdcall RunExe(void *)
 	}
 	else
 	{
-		lvi.pszText = "No valid *.exe / *.dll extension found in target file!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("No valid *.exe / *.dll extension found in target file!");
 		return 1;
 	}
 	if (strcmp(strupr((char *)pszBaseExt), "EXE") == 0)
@@ -10679,10 +7957,7 @@ unsigned __stdcall RunExe(void *)
 	}
 	else
 	{
-		lvi.pszText = "No valid *.exe / *.dll extension found in target file!";
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("No valid *.exe / *.dll extension found in target file!");
 		return 1;
 	}
 
@@ -10711,20 +7986,8 @@ unsigned __stdcall RunExe(void *)
 			(LPSTARTUPINFO)&si, // Pointer to STARTUPINFO structure.
 			&pi))             	// Pointer to PROCESS_INFORMATION structure.
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			lvi.pszText = "Create Process Failed! Missing or Invalid target dll";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("Create Process Failed! Missing or Invalid target dll");
+			LogItem(NULL);
 			return 1;
 		}
 	}
@@ -10762,20 +8025,8 @@ unsigned __stdcall RunExe(void *)
 			(LPSTARTUPINFO)&si, // Pointer to STARTUPINFO structure.
 			&pi))             	// Pointer to PROCESS_INFORMATION structure.
 		{
-			buf = 0;
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL, GetLastError(), 0,
-				(LPSTR)&buf, 0, NULL);
-			lvi.pszText = "Create Process Failed! Missing or Invalid target executable";
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
-			lvi.pszText = buf;
-			lvi.iItem = numitems;
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("Create Process Failed! Missing or Invalid target executable");
+			LogItem(NULL);
 			return 1;
 		}
 	}
@@ -10785,27 +8036,13 @@ unsigned __stdcall RunExe(void *)
 	cy = Rect.bottom - Rect.top;
 	if (GetOSDisplayString(szOS))
 	{
-		sprintf(bszOS, "OS --> %s", szOS);
-		lvi.pszText = (LPSTR)bszOS;
-		lvi.iItem = numitems;
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		numitems++;
+		LogItem("OS --> %s", szOS);
 	}
 	GetLocalTime(&st);
-	sprintf(c, "<------- %04u-%02u-%02u %02u:%02u:%02u ------->",
+	LogItem("<------- %04u-%02u-%02u %02u:%02u:%02u ------->",
 		st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
-	lvi.pszText = (LPSTR)c;
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	lvi.pszText = (LPSTR)f;
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
-	lvi.pszText = (LPSTR)ibuf;
-	lvi.iItem = numitems;
-	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-	numitems++;
+	LogItem("%s", f);
+	LogItem("%s", ibuf);
 
 	while (TRUE)
 	{
@@ -10816,21 +8053,8 @@ unsigned __stdcall RunExe(void *)
 			if (!SuspendThread(childhThread))
 			{
 				/*
-				buf = 0;
-				FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-					FORMAT_MESSAGE_FROM_SYSTEM |
-					FORMAT_MESSAGE_IGNORE_INSERTS,
-					NULL, GetLastError(), 0,
-					(LPSTR)&buf, 0, NULL);
-				sprintf(b, "Unable to SuspendThread: %p", childhThread);
-				lvi.pszText = (LPSTR)b;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
-				lvi.pszText = buf;
-				lvi.iItem = numitems;
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
+				LogItem("Unable to SuspendThread: %p", childhThread);
+				LogItem(NULL);
 				*/
 			}
 			if (checkcm2)
@@ -10847,21 +8071,8 @@ unsigned __stdcall RunExe(void *)
 				if (!VirtualProtectEx(childhProcess, (LPVOID)PESectionAddress,
 					PESectionSize, PEGuardProtect, &PEOldProtect))
 				{
-					buf = 0;
-					FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-						FORMAT_MESSAGE_FROM_SYSTEM |
-						FORMAT_MESSAGE_IGNORE_INSERTS,
-						NULL, GetLastError(), 0,
-						(LPSTR)&buf, 0, NULL);
-					sprintf(b, "VirtualProtectEx Error RunExe address: %p", PESectionAddress);
-					lvi.pszText = (LPSTR)b;
-					lvi.iItem = numitems;
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
-					lvi.pszText = buf;
-					lvi.iItem = numitems;
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
+					LogItem("VirtualProtectEx Error RunExe address: %p", PESectionAddress);
+					LogItem(NULL);
 				}
 				bcGuardPage = TRUE;
 			}
@@ -10953,27 +8164,11 @@ unsigned __stdcall RunExe(void *)
 										if (!WriteProcessMemory(pi.hProcess, SWBPExceptionAddress[1], &replbyte[1],
 											sizeof(BYTE), &dwWritten))
 										{
-											buf = 0;
-											FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-												FORMAT_MESSAGE_FROM_SYSTEM |
-												FORMAT_MESSAGE_IGNORE_INSERTS,
-												NULL, GetLastError(), 0,
-												(LPSTR)&buf, 0, NULL);
-											sprintf(b, "WriteProcessMemory Error VirtualAlloc address: %p", SWBPExceptionAddress[1]);
-											lvi.pszText = (LPSTR)b;
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
-											lvi.pszText = buf;
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
+											LogItem("WriteProcessMemory Error VirtualAlloc address: %p", SWBPExceptionAddress[1]);
+											LogItem(NULL);
 										}
 									}
-									lvi.pszText = (LPSTR)g;
-									lvi.iItem = numitems;
-									ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-									numitems++;
+									LogItem("%s", g);
 									l = 20;
 									EPhandled = TRUE;
 									break;
@@ -11044,21 +8239,8 @@ unsigned __stdcall RunExe(void *)
 									if (!ReadProcessMemory(pi.hProcess, (LPVOID)PvoidAddr, &DwordRead,
 										sizeof(DWORD_PTR), &dwRead))
 									{
-										buf = 0;
-										FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-											FORMAT_MESSAGE_FROM_SYSTEM |
-											FORMAT_MESSAGE_IGNORE_INSERTS,
-											NULL, GetLastError(), 0,
-											(LPSTR)&buf, 0, NULL);
-										sprintf(b, "ReadProcessMemory Error CreateFileA address: %p", PvoidAddr);
-										lvi.pszText = (LPSTR)b;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
-										lvi.pszText = buf;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
+										LogItem("ReadProcessMemory Error CreateFileA address: %p", PvoidAddr);
+										LogItem(NULL);
 										breaknow = TRUE;
 										break;
 									}
@@ -11087,21 +8269,8 @@ unsigned __stdcall RunExe(void *)
 										if (!ReadProcessMemory(pi.hProcess, (LPVOID)PvoidAddr, &DwordRead,
 											sizeof(DWORD_PTR), &dwRead))
 										{
-											buf = 0;
-											FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-												FORMAT_MESSAGE_FROM_SYSTEM |
-												FORMAT_MESSAGE_IGNORE_INSERTS,
-												NULL, GetLastError(), 0,
-												(LPSTR)&buf, 0, NULL);
-											sprintf(b, "ReadProcessMemory Error CopyMemII address: %p", PvoidAddr);
-											lvi.pszText = (LPSTR)b;
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
-											lvi.pszText = buf;
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
+											LogItem("ReadProcessMemory Error CopyMemII address: %p", PvoidAddr);
+											LogItem(NULL);
 										}
 										else if (DwordRead == 0x00001000)
 										{
@@ -11110,41 +8279,15 @@ unsigned __stdcall RunExe(void *)
 											if (!ReadProcessMemory(childhProcess, SWBPExceptionAddress[7], &scanbyte[7],
 												sizeof(BYTE), &dwWritten))
 											{
-												buf = 0;
-												FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-													FORMAT_MESSAGE_FROM_SYSTEM |
-													FORMAT_MESSAGE_IGNORE_INSERTS,
-													NULL, GetLastError(), 0,
-													(LPSTR)&buf, 0, NULL);
-												sprintf(b, "ReadProcessMemory Error CopyMemII address: %p", SWBPExceptionAddress[7]);
-												lvi.pszText = (LPSTR)b;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
-												lvi.pszText = buf;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
+												LogItem("ReadProcessMemory Error CopyMemII address: %p", SWBPExceptionAddress[7]);
+												LogItem(NULL);
 											}
 											// Set a SWBP on the child's OEP
 											else if (!WriteProcessMemory(childhProcess, SWBPExceptionAddress[7], &replbyte[7],
 												sizeof(BYTE), &dwWritten))
 											{
-												buf = 0;
-												FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-													FORMAT_MESSAGE_FROM_SYSTEM |
-													FORMAT_MESSAGE_IGNORE_INSERTS,
-													NULL, GetLastError(), 0,
-													(LPSTR)&buf, 0, NULL);
-												sprintf(b, "WriteProcessMemory Error CopyMemII address: %p", SWBPExceptionAddress[7]);
-												lvi.pszText = (LPSTR)b;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
-												lvi.pszText = buf;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
+												LogItem("WriteProcessMemory Error CopyMemII address: %p", SWBPExceptionAddress[7]);
+												LogItem(NULL);
 											}
 										}
 									}
@@ -11162,21 +8305,8 @@ unsigned __stdcall RunExe(void *)
 									if (!ReadProcessMemory(pi.hProcess, PvoidAddr, &PvoidRead,
 										sizeof(DWORD_PTR), &dwRead))
 									{
-										buf = 0;
-										FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-											FORMAT_MESSAGE_FROM_SYSTEM |
-											FORMAT_MESSAGE_IGNORE_INSERTS,
-											NULL, GetLastError(), 0,
-											(LPSTR)&buf, 0, NULL);
-										sprintf(b, "ReadProcessMemory Error GetModuleHandleA address: %p", PvoidAddr);
-										lvi.pszText = (LPSTR)b;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
-										lvi.pszText = buf;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
+										LogItem("ReadProcessMemory Error GetModuleHandleA address: %p", PvoidAddr);
+										LogItem(NULL);
 										breaknow = TRUE;
 										break;
 									}
@@ -11188,10 +8318,7 @@ unsigned __stdcall RunExe(void *)
 										if (!DetermineARMVM(pi.hProcess, 0))
 										{
 											// We have a problem
-											lvi.pszText = "Virtual Armadillo dll missing!";
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
+											LogItem("Virtual Armadillo dll missing!");
 											breaknow = TRUE;
 											break;
 										}
@@ -11227,21 +8354,8 @@ unsigned __stdcall RunExe(void *)
 										if (!WriteProcessMemory(pi.hProcess, (LPVOID)SWBPExceptionAddress[6], &replbyte[6],
 											sizeof(BYTE), &dwWritten))
 										{
-											buf = 0;
-											FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-												FORMAT_MESSAGE_FROM_SYSTEM |
-												FORMAT_MESSAGE_IGNORE_INSERTS,
-												NULL, GetLastError(), 0,
-												(LPSTR)&buf, 0, NULL);
-											sprintf(b, "WriteProcessMemory Error CreateThread address: %p", SWBPExceptionAddress[6]);
-											lvi.pszText = (LPSTR)b;
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
-											lvi.pszText = buf;
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
+											LogItem("WriteProcessMemory Error CreateThread address: %p", SWBPExceptionAddress[6]);
+											LogItem(NULL);
 											breaknow = TRUE;
 											break;
 										}
@@ -11253,21 +8367,8 @@ unsigned __stdcall RunExe(void *)
 											if (!VirtualProtectEx(pi.hProcess, (LPVOID)PESectionAddress,
 												PESectionSize, PEGuardProtect, &PEOldProtect))
 											{
-												buf = 0;
-												FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-													FORMAT_MESSAGE_FROM_SYSTEM |
-													FORMAT_MESSAGE_IGNORE_INSERTS,
-													NULL, GetLastError(), 0,
-													(LPSTR)&buf, 0, NULL);
-												sprintf(b, "VirtualProtectEx Error IAT Elimination address: %p", PESectionAddress);
-												lvi.pszText = (LPSTR)b;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
-												lvi.pszText = buf;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
+												LogItem("VirtualProtectEx Error IAT Elimination address: %p", PESectionAddress);
+												LogItem(NULL);
 												breaknow = TRUE;
 												break;
 											}
@@ -11295,21 +8396,8 @@ unsigned __stdcall RunExe(void *)
 										if (!ReadProcessMemory(pi.hProcess, (LPVOID)PvoidAddr, &PvoidRead,
 											sizeof(DWORD_PTR), &dwRead))
 										{
-											buf = 0;
-											FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-												FORMAT_MESSAGE_FROM_SYSTEM |
-												FORMAT_MESSAGE_IGNORE_INSERTS,
-												NULL, GetLastError(), 0,
-												(LPSTR)&buf, 0, NULL);
-											sprintf(b, "ReadProcessMemory Error WaitForDebugEvent address: %p", PvoidAddr);
-											lvi.pszText = (LPSTR)b;
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
-											lvi.pszText = buf;
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
+											LogItem("ReadProcessMemory Error WaitForDebugEvent address: %p", PvoidAddr);
+											LogItem(NULL);
 										}
 										else if (PvoidRead != 0)
 										{
@@ -11320,32 +8408,11 @@ unsigned __stdcall RunExe(void *)
 												ProcAddr10 = (FARPROC)GetProcAddress(hModule, (LPCSTR)"DebugActiveProcessStop");
 												if (!ProcAddr10)
 												{
-													buf = 0;
-													FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-														FORMAT_MESSAGE_FROM_SYSTEM |
-														FORMAT_MESSAGE_IGNORE_INSERTS,
-														NULL, GetLastError(), 0,
-														(LPSTR)&buf, 0, NULL);
-													lvi.pszText = buf;
-													lvi.iItem = numitems;
-													ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-													numitems++;
-													lvi.pszText = "Function: DebugActiveProcessStop";
-													lvi.iItem = numitems;
-													ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-													numitems++;
-													lvi.pszText = "kernelbase.dll: GetProcAddress Failed";
-													lvi.iItem = numitems;
-													ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-													numitems++;
-													lvi.pszText = "Cannot detach from process!";
-													lvi.iItem = numitems;
-													ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-													numitems++;
-													lvi.pszText = "You must have WinXP or above!";
-													lvi.iItem = numitems;
-													ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-													numitems++;
+													LogItem("Function: DebugActiveProcessStop");
+													LogItem(NULL);
+													LogItem("kernelbase.dll: GetProcAddress NULL");
+													LogItem("Cannot detach from process!");
+													LogItem("You must have WinXP or above!");
 													breaknow = TRUE;
 													break;
 												}
@@ -11359,20 +8426,8 @@ unsigned __stdcall RunExe(void *)
 													MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 												if (dwZMVMAddress == NULL)
 												{
-													buf = 0;
-													FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-														FORMAT_MESSAGE_FROM_SYSTEM |
-														FORMAT_MESSAGE_IGNORE_INSERTS,
-														NULL, GetLastError(), 0,
-														(LPSTR)&buf, 0, NULL);
-													lvi.pszText = "VirtualAlloc Error DebugActiveProcessStop";
-													lvi.iItem = numitems;
-													ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-													numitems++;
-													lvi.pszText = buf;
-													lvi.iItem = numitems;
-													ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-													numitems++;
+													LogItem("VirtualAlloc Error DebugActiveProcessStop");
+													LogItem(NULL);
 													breaknow = TRUE;
 													break;
 												}
@@ -11429,24 +8484,9 @@ unsigned __stdcall RunExe(void *)
 													if (j <= 0)
 													{
 														// We have an error!
-														memset(ibuf, 0, sizeof(ibuf));
-														sprintf(ibuf, "error= %s", errtext);
-														lvi.pszText = (LPSTR)ibuf;
-														lvi.iItem = numitems;
-														ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-														numitems++;
-														memset(ibuf, 0, sizeof(ibuf));
-														sprintf(ibuf, "Address: %08X", DwordRead);
-														lvi.pszText = (LPSTR)ibuf;
-														lvi.iItem = numitems;
-														ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-														numitems++;
-														memset(ibuf, 0, sizeof(ibuf));
-														sprintf(ibuf, "Binary Code: %s", am.code);
-														lvi.pszText = (LPSTR)ibuf;
-														lvi.iItem = numitems;
-														ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-														numitems++;
+														LogItem("error= %s", errtext);
+														LogItem("Address: %08X", DwordRead);
+														LogItem("Binary Code: %s", am.code);
 														break;
 													}
 													else
@@ -11455,21 +8495,8 @@ unsigned __stdcall RunExe(void *)
 														if (!WriteProcessMemory(pi.hProcess, (LPVOID)DwordRead, &am.code,
 															j, &dwWritten))
 														{
-															buf = 0;
-															FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																FORMAT_MESSAGE_FROM_SYSTEM |
-																FORMAT_MESSAGE_IGNORE_INSERTS,
-																NULL, GetLastError(), 0,
-																(LPSTR)&buf, 0, NULL);
-															sprintf(b, "WriteProcessMemory Error DebugActiveProcessStop address: %08X", DwordRead);
-															lvi.pszText = (LPSTR)b;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
-															lvi.pszText = buf;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
+															LogItem("WriteProcessMemory Error DebugActiveProcessStop address: %08X", DwordRead);
+															LogItem(NULL);
 															breaknow = TRUE;
 															break;
 														}
@@ -11488,34 +8515,14 @@ unsigned __stdcall RunExe(void *)
 												if (!WriteProcessMemory(pi.hProcess, (LPVOID)SaveDwordRead, &CebugEv,
 													sizeof(CebugEv), &dwWritten))
 												{
-													buf = 0;
-													FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-														FORMAT_MESSAGE_FROM_SYSTEM |
-														FORMAT_MESSAGE_IGNORE_INSERTS,
-														NULL, GetLastError(), 0,
-														(LPSTR)&buf, 0, NULL);
-													sprintf(b, "WriteProcessMemory Error DebugActiveProcessStop address: %08X", SaveDwordRead);
-													lvi.pszText = (LPSTR)b;
-													lvi.iItem = numitems;
-													ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-													numitems++;
-													lvi.pszText = buf;
-													lvi.iItem = numitems;
-													ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-													numitems++;
+													LogItem("WriteProcessMemory Error DebugActiveProcessStop address: %08X", SaveDwordRead);
+													LogItem(NULL);
 													breaknow = TRUE;
 													break;
 												}
 												detachnow = FALSE;
 												detached = TRUE;
-												sprintf(c, "%0X", childpid);
-												sprintf(ibuf, "Process %s detached", c);
-												lvi.pszText = (LPSTR)ibuf;
-												lvi.iItem = numitems;
-												ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-												ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
+												LogItem("Process %0X detached", childpid);
 											}
 										}
 										l = 20;
@@ -11527,21 +8534,8 @@ unsigned __stdcall RunExe(void *)
 									if (!ReadProcessMemory(pi.hProcess, (LPVOID)PvoidAddr, &DwordRead,
 										sizeof(DWORD_PTR), &dwRead))
 									{
-										buf = 0;
-										FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-											FORMAT_MESSAGE_FROM_SYSTEM |
-											FORMAT_MESSAGE_IGNORE_INSERTS,
-											NULL, GetLastError(), 0,
-											(LPSTR)&buf, 0, NULL);
-										sprintf(b, "ReadProcessMemory Error WaitForDebugEvent address: %p", PvoidAddr);
-										lvi.pszText = (LPSTR)b;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
-										lvi.pszText = buf;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
+										LogItem("ReadProcessMemory Error WaitForDebugEvent address: %p", PvoidAddr);
+										LogItem(NULL);
 										breaknow = TRUE;
 										break;
 									}
@@ -11553,21 +8547,8 @@ unsigned __stdcall RunExe(void *)
 										if (!ReadProcessMemory(pi.hProcess, (LPVOID)PvoidAddr, &CebugEv,
 											sizeof(CebugEv), &dwRead))
 										{
-											buf = 0;
-											FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-												FORMAT_MESSAGE_FROM_SYSTEM |
-												FORMAT_MESSAGE_IGNORE_INSERTS,
-												NULL, GetLastError(), 0,
-												(LPSTR)&buf, 0, NULL);
-											sprintf(b, "ReadProcessMemory Error WaitForDebugEvent address: %p", PvoidAddr);
-											lvi.pszText = (LPSTR)b;
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
-											lvi.pszText = buf;
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
+											LogItem("ReadProcessMemory Error WaitForDebugEvent address: %p", PvoidAddr);
+											LogItem(NULL);
 											breaknow = TRUE;
 											break;
 										}
@@ -11591,21 +8572,8 @@ unsigned __stdcall RunExe(void *)
 														if (!WriteProcessMemory(pi.hProcess, (LPVOID)SaveDwordRead, &CebugEv,
 															sizeof(CebugEv), &dwWritten))
 														{
-															buf = 0;
-															FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																FORMAT_MESSAGE_FROM_SYSTEM |
-																FORMAT_MESSAGE_IGNORE_INSERTS,
-																NULL, GetLastError(), 0,
-																(LPSTR)&buf, 0, NULL);
-															sprintf(b, "WriteProcessMemory Error PRIV_INSTRUCTION address: %08X", SaveDwordRead);
-															lvi.pszText = (LPSTR)b;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
-															lvi.pszText = buf;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
+															LogItem("WriteProcessMemory Error PRIV_INSTRUCTION address: %08X", SaveDwordRead);
+															LogItem(NULL);
 															breaknow = TRUE;
 															break;
 														}
@@ -11642,21 +8610,8 @@ unsigned __stdcall RunExe(void *)
 																	if (!ReadProcessMemory(childhProcess, (LPVOID)PvoidAddr, &DwordRead,
 																		sizeof(DWORD_PTR), &dwRead))
 																	{
-																		buf = 0;
-																		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																			FORMAT_MESSAGE_FROM_SYSTEM |
-																			FORMAT_MESSAGE_IGNORE_INSERTS,
-																			NULL, GetLastError(), 0,
-																			(LPSTR)&buf, 0, NULL);
-																		sprintf(b, "ReadProcessMemory Error VirtualAlloc address: %p", PvoidAddr);
-																		lvi.pszText = (LPSTR)b;
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
-																		lvi.pszText = buf;
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
+																		LogItem("ReadProcessMemory Error VirtualAlloc address: %p", PvoidAddr);
+																		LogItem(NULL);
 																	}
 																	thisSWBP = 1;
 																	SWBPExceptionAddress[8] = (PVOID)DwordRead;
@@ -11676,21 +8631,8 @@ unsigned __stdcall RunExe(void *)
 															if (!ReadProcessMemory(childhProcess, (LPVOID)PvoidAddr, &DwordRead,
 																sizeof(DWORD_PTR), &dwRead))
 															{
-																buf = 0;
-																FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																	FORMAT_MESSAGE_FROM_SYSTEM |
-																	FORMAT_MESSAGE_IGNORE_INSERTS,
-																	NULL, GetLastError(), 0,
-																	(LPSTR)&buf, 0, NULL);
-																sprintf(b, "ReadProcessMemory Error VirtualAlloc address: %p", PvoidAddr);
-																lvi.pszText = (LPSTR)b;
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
-																lvi.pszText = buf;
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
+																LogItem("ReadProcessMemory Error VirtualAlloc address: %p", PvoidAddr);
+																LogItem(NULL);
 																breaknow = TRUE;
 																break;
 															}
@@ -11710,21 +8652,8 @@ unsigned __stdcall RunExe(void *)
 																	  if (!ReadProcessMemory(childhProcess, (LPVOID)PvoidAddr, &DwordRead,
 																		  sizeof(DWORD_PTR), &dwRead))
 																	  {
-																		  buf = 0;
-																		  FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																			  FORMAT_MESSAGE_FROM_SYSTEM |
-																			  FORMAT_MESSAGE_IGNORE_INSERTS,
-																			  NULL, GetLastError(), 0,
-																			  (LPSTR)&buf, 0, NULL);
-																		  sprintf(b, "ReadProcessMemory Error VirtualAlloc address: %p", PvoidAddr);
-																		  lvi.pszText = (LPSTR)b;
-																		  lvi.iItem = numitems;
-																		  ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		  numitems++;
-																		  lvi.pszText = buf;
-																		  lvi.iItem = numitems;
-																		  ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		  numitems++;
+																		  LogItem("ReadProcessMemory Error VirtualAlloc address: %p", PvoidAddr);
+																		  LogItem(NULL);
 																		  breaknow = TRUE;
 																		  break;
 																	  }
@@ -11760,21 +8689,8 @@ unsigned __stdcall RunExe(void *)
 															if (!ReadProcessMemory(childhProcess, (LPVOID)PvoidAddr, &DwordRead,
 																sizeof(DWORD_PTR), &dwRead))
 															{
-																buf = 0;
-																FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																	FORMAT_MESSAGE_FROM_SYSTEM |
-																	FORMAT_MESSAGE_IGNORE_INSERTS,
-																	NULL, GetLastError(), 0,
-																	(LPSTR)&buf, 0, NULL);
-																sprintf(b, "ReadProcessMemory Error CreateFileA address: %p", PvoidAddr);
-																lvi.pszText = (LPSTR)b;
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
-																lvi.pszText = buf;
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
+																LogItem("ReadProcessMemory Error CreateFileA address: %p", PvoidAddr);
+																LogItem(NULL);
 																breaknow = TRUE;
 																break;
 															}
@@ -11801,21 +8717,8 @@ unsigned __stdcall RunExe(void *)
 															if (!ReadProcessMemory(childhProcess, PvoidAddr, &PvoidRead,
 																sizeof(DWORD_PTR), &dwRead))
 															{
-																buf = 0;
-																FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																	FORMAT_MESSAGE_FROM_SYSTEM |
-																	FORMAT_MESSAGE_IGNORE_INSERTS,
-																	NULL, GetLastError(), 0,
-																	(LPSTR)&buf, 0, NULL);
-																sprintf(b, "ReadProcessMemory Error GetModuleHandleA address: %p", PvoidAddr);
-																lvi.pszText = (LPSTR)b;
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
-																lvi.pszText = buf;
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
+																LogItem("ReadProcessMemory Error GetModuleHandleA address: %p", PvoidAddr);
+																LogItem(NULL);
 																breaknow = TRUE;
 																break;
 															}
@@ -11827,10 +8730,7 @@ unsigned __stdcall RunExe(void *)
 																if (!DetermineARMVM(childhProcess, 0))
 																{
 																	// We have a problem
-																	lvi.pszText = "Virtual Armadillo dll missing!";
-																	lvi.iItem = numitems;
-																	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																	numitems++;
+																	LogItem("Virtual Armadillo dll missing!");
 																	breaknow = TRUE;
 																	break;
 																}
@@ -11866,21 +8766,8 @@ unsigned __stdcall RunExe(void *)
 																if (!WriteProcessMemory(childhProcess, (LPVOID)SWBPExceptionAddress[6], &replbyte[6],
 																	sizeof(BYTE), &dwWritten))
 																{
-																	buf = 0;
-																	FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																		FORMAT_MESSAGE_FROM_SYSTEM |
-																		FORMAT_MESSAGE_IGNORE_INSERTS,
-																		NULL, GetLastError(), 0,
-																		(LPSTR)&buf, 0, NULL);
-																	sprintf(b, "WriteProcessMemory Error CreateThread address: %p", SWBPExceptionAddress[6]);
-																	lvi.pszText = (LPSTR)b;
-																	lvi.iItem = numitems;
-																	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																	numitems++;
-																	lvi.pszText = buf;
-																	lvi.iItem = numitems;
-																	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																	numitems++;
+																	LogItem("WriteProcessMemory Error CreateThread address: %p", SWBPExceptionAddress[6]);
+																	LogItem(NULL);
 																	breaknow = TRUE;
 																	break;
 																}
@@ -11907,21 +8794,8 @@ unsigned __stdcall RunExe(void *)
 															if (!ReadProcessMemory(childhProcess, (LPVOID)PvoidAddr, &PvoidRead,
 																sizeof(DWORD_PTR), &dwRead))
 															{
-																buf = 0;
-																FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																	FORMAT_MESSAGE_FROM_SYSTEM |
-																	FORMAT_MESSAGE_IGNORE_INSERTS,
-																	NULL, GetLastError(), 0,
-																	(LPSTR)&buf, 0, NULL);
-																sprintf(b, "ReadProcessMemory Error CreateThread address: %p", PvoidAddr);
-																lvi.pszText = (LPSTR)b;
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
-																lvi.pszText = buf;
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
+																LogItem("ReadProcessMemory Error CreateThread address: %p", PvoidAddr);
+																LogItem(NULL);
 															}
 															// See if the Call was made from Arm VM
 															// This value should fall within Armadillo VM
@@ -11935,34 +8809,15 @@ unsigned __stdcall RunExe(void *)
 																// If this is a UPX compressed program use UPX1 section
 																if (UPX1VMaddress != 0x00000000)
 																{
-																	lvi.pszText = (LPSTR)isep;
-																	lvi.iItem = numitems;
-																	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																	numitems++;
-																	lvi.pszText = "UPX compression detected, decompressing...";
-																	lvi.iItem = numitems;
-																	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																	numitems++;
+																	LogItem("%s", isep);
+																	LogItem("UPX compression detected, decompressing...");
 																	Target = new BYTE[UPX1VMsize];
 																	// Read the base module's process address space into our process memory
 																	if (!ReadProcessMemory(childhProcess, (LPVOID)UPX1VMaddress, &Target[0],
 																		UPX1VMsize, &dwRead))
 																	{
-																		buf = 0;
-																		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																			FORMAT_MESSAGE_FROM_SYSTEM |
-																			FORMAT_MESSAGE_IGNORE_INSERTS,
-																			NULL, GetLastError(), 0,
-																			(LPSTR)&buf, 0, NULL);
-																		sprintf(b, "ReadProcessMemory Error CreateThread address: %p", UPX1VMaddress);
-																		lvi.pszText = (LPSTR)b;
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
-																		lvi.pszText = buf;
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
+																		LogItem("ReadProcessMemory Error CreateThread address: %p", UPX1VMaddress);
+																		LogItem(NULL);
 																		breaknow = TRUE;
 																		break;
 																	}
@@ -11989,10 +8844,7 @@ unsigned __stdcall RunExe(void *)
 																				else if (jmpconst >= (ulong)UPX1VMaddress &&
 																					jmpconst <= (ulong)UPX1VMaddress + UPX1VMsize)
 																				{
-																					lvi.pszText = "Warning: JMP destination section UPX1, not OEP!";
-																					lvi.iItem = numitems;
-																					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																					numitems++;
+																					LogItem("Warning: JMP destination section UPX1, not OEP!");
 																					break;
 																				}
 																				else
@@ -12009,33 +8861,14 @@ unsigned __stdcall RunExe(void *)
 																	}
 																	if (jmpconst == 0)
 																	{
-																		lvi.pszText = "JMP UPX0 instruction not found in section UPX1";
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
-																		lvi.pszText = "Unable to set breakpoint, using trace";
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
+																		LogItem("JMP UPX0 instruction not found in section UPX1");
+																		LogItem("Unable to set breakpoint, using trace");
 																		// Turn on Guard_Page attribute in UPX1 section
 																		if (!VirtualProtectEx(childhProcess, (LPVOID)UPX1VMaddress,
 																			UPX1VMsize, PEGuardProtect, &PEOldProtect))
 																		{
-																			buf = 0;
-																			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																				FORMAT_MESSAGE_FROM_SYSTEM |
-																				FORMAT_MESSAGE_IGNORE_INSERTS,
-																				NULL, GetLastError(), 0,
-																				(LPSTR)&buf, 0, NULL);
-																			sprintf(b, "VirtualProtectEx Error CreateThread address: %p", UPX1VMaddress);
-																			lvi.pszText = (LPSTR)b;
-																			lvi.iItem = numitems;
-																			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																			numitems++;
-																			lvi.pszText = buf;
-																			lvi.iItem = numitems;
-																			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																			numitems++;
+																			LogItem("VirtualProtectEx Error CreateThread address: %p", UPX1VMaddress);
+																			LogItem(NULL);
 																			breaknow = TRUE;
 																			break;
 																		}
@@ -12057,21 +8890,8 @@ unsigned __stdcall RunExe(void *)
 																	if (!VirtualProtectEx(childhProcess, (LPVOID)ItextVMaddress,
 																		ItextVMsize, PEGuardProtect, &PEOldProtect))
 																	{
-																		buf = 0;
-																		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																			FORMAT_MESSAGE_FROM_SYSTEM |
-																			FORMAT_MESSAGE_IGNORE_INSERTS,
-																			NULL, GetLastError(), 0,
-																			(LPSTR)&buf, 0, NULL);
-																		sprintf(b, "VirtualProtectEx Error CreateThread address: %p", ItextVMaddress);
-																		lvi.pszText = (LPSTR)b;
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
-																		lvi.pszText = buf;
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
+																		LogItem("VirtualProtectEx Error CreateThread address: %p", ItextVMaddress);
+																		LogItem(NULL);
 																		breaknow = TRUE;
 																		break;
 																	}
@@ -12092,33 +8912,14 @@ unsigned __stdcall RunExe(void *)
 																	if (mbi.Protect > 0x00000100)
 																	{
 																		onetime = TRUE;
-																		lvi.pszText = (LPSTR)isep;
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
-																		lvi.pszText = "CopyMem2 detected";
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
+																		LogItem("%s", isep);
+																		LogItem("CopyMem2 detected");
 																		// Set a SWBP on WriteProcessMemory
 																		if (!WriteProcessMemory(pi.hProcess, (LPVOID)SWBPExceptionAddress[3], &replbyte[3],
 																			sizeof(BYTE), &dwWritten))
 																		{
-																			buf = 0;
-																			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																				FORMAT_MESSAGE_FROM_SYSTEM |
-																				FORMAT_MESSAGE_IGNORE_INSERTS,
-																				NULL, GetLastError(), 0,
-																				(LPSTR)&buf, 0, NULL);
-																			sprintf(b, "WriteProcessMemory Error WriteProcessMemory address: %p", SWBPExceptionAddress[3]);
-																			lvi.pszText = (LPSTR)b;
-																			lvi.iItem = numitems;
-																			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																			numitems++;
-																			lvi.pszText = buf;
-																			lvi.iItem = numitems;
-																			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																			numitems++;
+																			LogItem("WriteProcessMemory Error WriteProcessMemory address: %p", SWBPExceptionAddress[3]);
+																			LogItem(NULL);
 																			breaknow = TRUE;
 																			break;
 																		}
@@ -12127,21 +8928,8 @@ unsigned __stdcall RunExe(void *)
 																	else if (!VirtualProtectEx(childhProcess, (LPVOID)PESectionAddress,
 																		PESectionSize, PEGuardProtect, &PEOldProtect))
 																	{
-																		buf = 0;
-																		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																			FORMAT_MESSAGE_FROM_SYSTEM |
-																			FORMAT_MESSAGE_IGNORE_INSERTS,
-																			NULL, GetLastError(), 0,
-																			(LPSTR)&buf, 0, NULL);
-																		sprintf(b, "VirtualProtectEx Error CreateThread address: %p", PESectionAddress);
-																		lvi.pszText = (LPSTR)b;
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
-																		lvi.pszText = buf;
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
+																		LogItem("VirtualProtectEx Error CreateThread address: %p", PESectionAddress);
+																		LogItem(NULL);
 																		breaknow = TRUE;
 																		break;
 																	}
@@ -12150,21 +8938,8 @@ unsigned __stdcall RunExe(void *)
 																	if (!WriteProcessMemory(childhProcess, (LPVOID)SWBPExceptionAddress[2], &replbyte[2],
 																		sizeof(BYTE), &dwWritten))
 																	{
-																		buf = 0;
-																		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																			FORMAT_MESSAGE_FROM_SYSTEM |
-																			FORMAT_MESSAGE_IGNORE_INSERTS,
-																			NULL, GetLastError(), 0,
-																			(LPSTR)&buf, 0, NULL);
-																		sprintf(b, "WriteProcessMemory Error CreateFileA address: %p", SWBPExceptionAddress[2]);
-																		lvi.pszText = (LPSTR)b;
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
-																		lvi.pszText = buf;
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
+																		LogItem("WriteProcessMemory Error CreateFileA address: %p", SWBPExceptionAddress[2]);
+																		LogItem(NULL);
 																		breaknow = TRUE;
 																		break;
 																	}
@@ -12195,10 +8970,7 @@ unsigned __stdcall RunExe(void *)
 																   if (dwCalcAddress >= (DWORD_PTR)PESectionAddress + PESectionSize)
 																   {
 																	   copymem2 = FALSE;
-																	   lvi.pszText = "CopyMem2 completed";
-																	   lvi.iItem = numitems;
-																	   ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																	   numitems++;
+																	   LogItem("CopyMem2 completed");
 																	   // Original PAGE_GUARD exception
 																	   // memory addresses for copymem-II
 																	   memcpy(&CebugEv, &SebugEv, sizeof(CebugEv));
@@ -12206,21 +8978,8 @@ unsigned __stdcall RunExe(void *)
 																	   if (!WriteProcessMemory(pi.hProcess, (LPVOID)PvoidAddr, &CebugEv,
 																		   sizeof(CebugEv), &dwRead))
 																	   {
-																		   buf = 0;
-																		   FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																			   FORMAT_MESSAGE_FROM_SYSTEM |
-																			   FORMAT_MESSAGE_IGNORE_INSERTS,
-																			   NULL, GetLastError(), 0,
-																			   (LPSTR)&buf, 0, NULL);
-																		   sprintf(b, "WriteProcessMemory Error CopyMemII address: %p", PvoidAddr);
-																		   lvi.pszText = (LPSTR)b;
-																		   lvi.iItem = numitems;
-																		   ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		   numitems++;
-																		   lvi.pszText = buf;
-																		   lvi.iItem = numitems;
-																		   ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		   numitems++;
+																		   LogItem("WriteProcessMemory Error CopyMemII address: %p", PvoidAddr);
+																		   LogItem(NULL);
 																	   }
 																	   goto CHECKFOROEP;
 																   }
@@ -12237,21 +8996,8 @@ unsigned __stdcall RunExe(void *)
 																	   if (!WriteProcessMemory(pi.hProcess, (LPVOID)PvoidAddr, &CebugEv,
 																		   sizeof(CebugEv), &dwWritten))
 																	   {
-																		   buf = 0;
-																		   FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																			   FORMAT_MESSAGE_FROM_SYSTEM |
-																			   FORMAT_MESSAGE_IGNORE_INSERTS,
-																			   NULL, GetLastError(), 0,
-																			   (LPSTR)&buf, 0, NULL);
-																		   sprintf(b, "WriteProcessMemory Error CopyMemII address: %p", PvoidAddr);
-																		   lvi.pszText = (LPSTR)b;
-																		   lvi.iItem = numitems;
-																		   ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		   numitems++;
-																		   lvi.pszText = buf;
-																		   lvi.iItem = numitems;
-																		   ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		   numitems++;
+																		   LogItem("WriteProcessMemory Error CopyMemII address: %p", PvoidAddr);
+																		   LogItem(NULL);
 																	   }
 																	   // Get Child Thread context
 																	   Context.ContextFlags = CONTEXT_FULL;
@@ -12263,40 +9009,14 @@ unsigned __stdcall RunExe(void *)
 																	   if (!ReadProcessMemory(childhProcess, SWBPExceptionAddress[7], &scanbyte[7],
 																		   sizeof(BYTE), &dwRead))
 																	   {
-																		   buf = 0;
-																		   FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																			   FORMAT_MESSAGE_FROM_SYSTEM |
-																			   FORMAT_MESSAGE_IGNORE_INSERTS,
-																			   NULL, GetLastError(), 0,
-																			   (LPSTR)&buf, 0, NULL);
-																		   sprintf(b, "ReadProcessMemory Error CopyMemII address: %p", SWBPExceptionAddress[7]);
-																		   lvi.pszText = (LPSTR)b;
-																		   lvi.iItem = numitems;
-																		   ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		   numitems++;
-																		   lvi.pszText = buf;
-																		   lvi.iItem = numitems;
-																		   ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		   numitems++;
+																		   LogItem("ReadProcessMemory Error CopyMemII address: %p", SWBPExceptionAddress[7]);
+																		   LogItem(NULL);
 																	   }
 																	   if (!WriteProcessMemory(childhProcess, SWBPExceptionAddress[7], &replbyte[7],
 																		   sizeof(BYTE), &dwWritten))
 																	   {
-																		   buf = 0;
-																		   FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																			   FORMAT_MESSAGE_FROM_SYSTEM |
-																			   FORMAT_MESSAGE_IGNORE_INSERTS,
-																			   NULL, GetLastError(), 0,
-																			   (LPSTR)&buf, 0, NULL);
-																		   sprintf(b, "WriteProcessMemory Error CopyMemII address: %p", SWBPExceptionAddress[7]);
-																		   lvi.pszText = (LPSTR)b;
-																		   lvi.iItem = numitems;
-																		   ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		   numitems++;
-																		   lvi.pszText = buf;
-																		   lvi.iItem = numitems;
-																		   ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		   numitems++;
+																		   LogItem("WriteProcessMemory Error CopyMemII address: %p", SWBPExceptionAddress[7]);
+																		   LogItem(NULL);
 																	   }
 																   }
 																   m = 20;
@@ -12312,21 +9032,8 @@ unsigned __stdcall RunExe(void *)
 																if (!VirtualProtectEx(childhProcess, (LPVOID)PESectionAddress,
 																	PESectionSize, PEGuardProtect, &PEOldProtect))
 																{
-																	buf = 0;
-																	FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																		FORMAT_MESSAGE_FROM_SYSTEM |
-																		FORMAT_MESSAGE_IGNORE_INSERTS,
-																		NULL, GetLastError(), 0,
-																		(LPSTR)&buf, 0, NULL);
-																	sprintf(b, "VirtualProtectEx Error CreateThread address: %p", PESectionAddress);
-																	lvi.pszText = (LPSTR)b;
-																	lvi.iItem = numitems;
-																	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																	numitems++;
-																	lvi.pszText = buf;
-																	lvi.iItem = numitems;
-																	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																	numitems++;
+																	LogItem("VirtualProtectEx Error CreateThread address: %p", PESectionAddress);
+																	LogItem(NULL);
 																	breaknow = TRUE;
 																	break;
 																}
@@ -12338,21 +9045,8 @@ unsigned __stdcall RunExe(void *)
 																if (!WriteProcessMemory(childhProcess, (LPVOID)SWBPExceptionAddress[thisSWBP], &replbyte[thisSWBP],
 																	sizeof(BYTE), &dwWritten))
 																{
-																	buf = 0;
-																	FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																		FORMAT_MESSAGE_FROM_SYSTEM |
-																		FORMAT_MESSAGE_IGNORE_INSERTS,
-																		NULL, GetLastError(), 0,
-																		(LPSTR)&buf, 0, NULL);
-																	sprintf(b, "WriteProcessMemory Error Single Step address: %p", SWBPExceptionAddress[thisSWBP]);
-																	lvi.pszText = (LPSTR)b;
-																	lvi.iItem = numitems;
-																	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																	numitems++;
-																	lvi.pszText = buf;
-																	lvi.iItem = numitems;
-																	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																	numitems++;
+																	LogItem("WriteProcessMemory Error Single Step address: %p", SWBPExceptionAddress[thisSWBP]);
+																	LogItem(NULL);
 																	breaknow = TRUE;
 																}
 															}
@@ -12383,21 +9077,8 @@ unsigned __stdcall RunExe(void *)
 															if (!ReadProcessMemory(childhProcess, (LPVOID)PvoidAddr, &PvoidRead,
 																sizeof(DWORD_PTR), &dwRead))
 															{
-																buf = 0;
-																FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																	FORMAT_MESSAGE_FROM_SYSTEM |
-																	FORMAT_MESSAGE_IGNORE_INSERTS,
-																	NULL, GetLastError(), 0,
-																	(LPSTR)&buf, 0, NULL);
-																sprintf(b, "ReadProcessMemory Error IAT elimination address: %p", PvoidAddr);
-																lvi.pszText = (LPSTR)b;
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
-																lvi.pszText = buf;
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
+																LogItem("ReadProcessMemory Error IAT elimination address: %p", PvoidAddr);
+																LogItem(NULL);
 																breaknow = TRUE;
 																break;
 															}
@@ -12412,60 +9093,28 @@ unsigned __stdcall RunExe(void *)
 																	if (!ReadProcessMemory(childhProcess, (LPVOID)SWBPExceptionAddress[12], &scanbyte[12],
 																		sizeof(BYTE), &dwRead))
 																	{
-																		buf = 0;
-																		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																			FORMAT_MESSAGE_FROM_SYSTEM |
-																			FORMAT_MESSAGE_IGNORE_INSERTS,
-																			NULL, GetLastError(), 0,
-																			(LPSTR)&buf, 0, NULL);
-																		sprintf(b, "ReadProcessMemory Error IAT elimination address: %p", SWBPExceptionAddress[12]);
-																		lvi.pszText = (LPSTR)b;
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
-																		lvi.pszText = buf;
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
+																		LogItem("ReadProcessMemory Error IAT elimination address: %p", SWBPExceptionAddress[12]);
+																		LogItem(NULL);
 																		breaknow = TRUE;
 																		break;
 																	}
 																	if (!WriteProcessMemory(childhProcess, (LPVOID)SWBPExceptionAddress[12], &replbyte[12],
 																		sizeof(BYTE), &dwWritten))
 																	{
-																		buf = 0;
-																		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																			FORMAT_MESSAGE_FROM_SYSTEM |
-																			FORMAT_MESSAGE_IGNORE_INSERTS,
-																			NULL, GetLastError(), 0,
-																			(LPSTR)&buf, 0, NULL);
-																		sprintf(b, "WriteProcessMemory Error IAT elimination address: %p", SWBPExceptionAddress[12]);
-																		lvi.pszText = (LPSTR)b;
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
-																		lvi.pszText = buf;
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
+																		LogItem("WriteProcessMemory Error IAT elimination address: %p", SWBPExceptionAddress[12]);
+																		LogItem(NULL);
 																		breaknow = TRUE;
 																		break;
 																	}
 																}
 																else
 																{
-																	lvi.pszText = "Warning: Cannot fix security.dll error";
-																	lvi.iItem = numitems;
-																	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																	numitems++;
+																	LogItem("Warning: Cannot fix security.dll error");
 																}
 															}
 															else
 															{
-																lvi.pszText = "Warning: Cannot fix security.dll error";
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
+																LogItem("Warning: Cannot fix security.dll error");
 															}
 															m = 20;
 															break;
@@ -12486,21 +9135,8 @@ unsigned __stdcall RunExe(void *)
 															if (!ReadProcessMemory(childhProcess, (LPVOID)PvoidAddr, &PvoidRead,
 																sizeof(DWORD_PTR), &dwRead))
 															{
-																buf = 0;
-																FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																	FORMAT_MESSAGE_FROM_SYSTEM |
-																	FORMAT_MESSAGE_IGNORE_INSERTS,
-																	NULL, GetLastError(), 0,
-																	(LPSTR)&buf, 0, NULL);
-																sprintf(b, "ReadProcessMemory Error OutputDebugStringA address: %p", PvoidAddr);
-																lvi.pszText = (LPSTR)b;
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
-																lvi.pszText = buf;
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
+																LogItem("ReadProcessMemory Error OutputDebugStringA address: %p", PvoidAddr);
+																LogItem(NULL);
 															}
 															dwArmVMAddress = (PVOID)(DWORD_PTR)PvoidRead;
 															dwRead = VirtualQueryEx(
@@ -12526,10 +9162,7 @@ unsigned __stdcall RunExe(void *)
 																if (!DetermineARMVM(childhProcess, 1))
 																{
 																	// We have a problem
-																	lvi.pszText = "Virtual Armadillo dll missing!";
-																	lvi.iItem = numitems;
-																	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																	numitems++;
+																	LogItem("Virtual Armadillo dll missing!");
 																	breaknow = TRUE;
 																	break;
 																}
@@ -12541,21 +9174,8 @@ unsigned __stdcall RunExe(void *)
 																	if (!WriteProcessMemory(childhProcess, (LPVOID)SWBPExceptionAddress[1], &replbyte[1],
 																		sizeof(BYTE), &dwWritten))
 																	{
-																		buf = 0;
-																		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																			FORMAT_MESSAGE_FROM_SYSTEM |
-																			FORMAT_MESSAGE_IGNORE_INSERTS,
-																			NULL, GetLastError(), 0,
-																			(LPSTR)&buf, 0, NULL);
-																		sprintf(b, "WriteProcessMemory Error VirtualAlloc address: %p", SWBPExceptionAddress[1]);
-																		lvi.pszText = (LPSTR)b;
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
-																		lvi.pszText = buf;
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
+																		LogItem("WriteProcessMemory Error VirtualAlloc address: %p", SWBPExceptionAddress[1]);
+																		LogItem(NULL);
 																		breaknow = TRUE;
 																		break;
 																	}
@@ -12563,21 +9183,8 @@ unsigned __stdcall RunExe(void *)
 																	if (!WriteProcessMemory(childhProcess, (LPVOID)SWBPExceptionAddress[15], &replbyte[15],
 																		sizeof(BYTE), &dwWritten))
 																	{
-																		buf = 0;
-																		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																			FORMAT_MESSAGE_FROM_SYSTEM |
-																			FORMAT_MESSAGE_IGNORE_INSERTS,
-																			NULL, GetLastError(), 0,
-																			(LPSTR)&buf, 0, NULL);
-																		sprintf(b, "WriteProcessMemory Error CreateFileMappingA address: %p", SWBPExceptionAddress[15]);
-																		lvi.pszText = (LPSTR)b;
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
-																		lvi.pszText = buf;
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
+																		LogItem("WriteProcessMemory Error CreateFileMappingA address: %p", SWBPExceptionAddress[15]);
+																		LogItem(NULL);
 																		breaknow = TRUE;
 																		break;
 																	}
@@ -12585,21 +9192,8 @@ unsigned __stdcall RunExe(void *)
 																	if (!WriteProcessMemory(childhProcess, (LPVOID)SWBPExceptionAddress[16], &replbyte[16],
 																		sizeof(BYTE), &dwWritten))
 																	{
-																		buf = 0;
-																		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																			FORMAT_MESSAGE_FROM_SYSTEM |
-																			FORMAT_MESSAGE_IGNORE_INSERTS,
-																			NULL, GetLastError(), 0,
-																			(LPSTR)&buf, 0, NULL);
-																		sprintf(b, "WriteProcessMemory Error GetModuleFileNameA address: %p", SWBPExceptionAddress[16]);
-																		lvi.pszText = (LPSTR)b;
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
-																		lvi.pszText = buf;
-																		lvi.iItem = numitems;
-																		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																		numitems++;
+																		LogItem("WriteProcessMemory Error GetModuleFileNameA address: %p", SWBPExceptionAddress[16]);
+																		LogItem(NULL);
 																		breaknow = TRUE;
 																		break;
 																	}
@@ -12634,21 +9228,8 @@ unsigned __stdcall RunExe(void *)
 															if (!WriteProcessMemory(childhProcess, (LPVOID)SWBPExceptionAddress[4], &replbyte[4],
 																sizeof(BYTE), &dwWritten))
 															{
-																buf = 0;
-																FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																	FORMAT_MESSAGE_FROM_SYSTEM |
-																	FORMAT_MESSAGE_IGNORE_INSERTS,
-																	NULL, GetLastError(), 0,
-																	(LPSTR)&buf, 0, NULL);
-																sprintf(b, "WriteProcessMemory Error GetModuleHandleA address: %p", SWBPExceptionAddress[4]);
-																lvi.pszText = (LPSTR)b;
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
-																lvi.pszText = buf;
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
+																LogItem("WriteProcessMemory Error GetModuleHandleA address: %p", SWBPExceptionAddress[4]);
+																LogItem(NULL);
 																breaknow = TRUE;
 																break;
 															}
@@ -12661,21 +9242,8 @@ unsigned __stdcall RunExe(void *)
 															if (!ReadProcessMemory(childhProcess, PvoidAddr, &PvoidRead,
 																sizeof(DWORD_PTR), &dwRead))
 															{
-																buf = 0;
-																FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																	FORMAT_MESSAGE_FROM_SYSTEM |
-																	FORMAT_MESSAGE_IGNORE_INSERTS,
-																	NULL, GetLastError(), 0,
-																	(LPSTR)&buf, 0, NULL);
-																sprintf(b, "ReadProcessMemory Error GetModuleHandleA address: %p", PvoidAddr);
-																lvi.pszText = (LPSTR)b;
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
-																lvi.pszText = buf;
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
+																LogItem("ReadProcessMemory Error GetModuleHandleA address: %p", PvoidAddr);
+																LogItem(NULL);
 																breaknow = TRUE;
 																break;
 															}
@@ -12687,10 +9255,7 @@ unsigned __stdcall RunExe(void *)
 																if (!DetermineARMVM(childhProcess, 0))
 																{
 																	// We have a problem
-																	lvi.pszText = "Virtual Armadillo dll missing!";
-																	lvi.iItem = numitems;
-																	ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																	numitems++;
+																	LogItem("Virtual Armadillo dll missing!");
 																	breaknow = TRUE;
 																	break;
 																}
@@ -12765,21 +9330,8 @@ unsigned __stdcall RunExe(void *)
 														if (!ReadProcessMemory(childhProcess, (LPVOID)PvoidAddr, &PvoidRead,
 															sizeof(DWORD_PTR), &dwRead))
 														{
-															buf = 0;
-															FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																FORMAT_MESSAGE_FROM_SYSTEM |
-																FORMAT_MESSAGE_IGNORE_INSERTS,
-																NULL, GetLastError(), 0,
-																(LPSTR)&buf, 0, NULL);
-															sprintf(b, "ReadProcessMemory Error GUARD_PAGE address: %p", PvoidAddr);
-															lvi.pszText = (LPSTR)b;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
-															lvi.pszText = buf;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
+															LogItem("ReadProcessMemory Error GUARD_PAGE address: %p", PvoidAddr);
+															LogItem(NULL);
 															breaknow = TRUE;
 															break;
 														}
@@ -12808,21 +9360,8 @@ unsigned __stdcall RunExe(void *)
 														if (!ReadProcessMemory(pi.hProcess, Text1VMaddress, dwBMVMAddress,
 															Text1VMsize, &dwRead))
 														{
-															buf = 0;
-															FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																FORMAT_MESSAGE_FROM_SYSTEM |
-																FORMAT_MESSAGE_IGNORE_INSERTS,
-																NULL, GetLastError(), 0,
-																(LPSTR)&buf, 0, NULL);
-															sprintf(b, "ReadProcessMemory Error Text1VMaddress address: %p", Text1VMaddress);
-															lvi.pszText = (LPSTR)b;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
-															lvi.pszText = buf;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
+															LogItem("ReadProcessMemory Error Text1VMaddress address: %p", Text1VMaddress);
+															LogItem(NULL);
 															breaknow = TRUE;
 															break;
 														}
@@ -12835,10 +9374,7 @@ unsigned __stdcall RunExe(void *)
 														// Search String not found! 
 														if (!sf)
 														{
-															lvi.pszText = "decrypted pages for copymem2 search string not found!";
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
+															LogItem("decrypted pages for copymem2 search string not found!");
 															if (checkforerrors)
 															{
 																CreateDump(pi.hProcess, 1);
@@ -12861,21 +9397,8 @@ unsigned __stdcall RunExe(void *)
 														if (!ReadProcessMemory(pi.hProcess, (LPVOID)PvoidAddr, &PvoidRead,
 															sizeof(DWORD_PTR), &dwRead))
 														{
-															buf = 0;
-															FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																FORMAT_MESSAGE_FROM_SYSTEM |
-																FORMAT_MESSAGE_IGNORE_INSERTS,
-																NULL, GetLastError(), 0,
-																(LPSTR)&buf, 0, NULL);
-															sprintf(b, "ReadProcessMemory Error Text1VMaddress address: %p", PvoidAddr);
-															lvi.pszText = (LPSTR)b;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
-															lvi.pszText = buf;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
+															LogItem("ReadProcessMemory Error Text1VMaddress address: %p", PvoidAddr);
+															LogItem(NULL);
 															breaknow = TRUE;
 															break;
 														}
@@ -12885,21 +9408,8 @@ unsigned __stdcall RunExe(void *)
 															if (!ReadProcessMemory(pi.hProcess, (LPVOID)PvoidRead, &dwBMVMValue,
 																sizeof(DWORD_PTR), &dwRead))
 															{
-																buf = 0;
-																FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																	FORMAT_MESSAGE_FROM_SYSTEM |
-																	FORMAT_MESSAGE_IGNORE_INSERTS,
-																	NULL, GetLastError(), 0,
-																	(LPSTR)&buf, 0, NULL);
-																sprintf(b, "ReadProcessMemory Error Text1VMaddress address: %p", PvoidRead);
-																lvi.pszText = (LPSTR)b;
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
-																lvi.pszText = buf;
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
+																LogItem("ReadProcessMemory Error Text1VMaddress address: %p", PvoidRead);
+																LogItem(NULL);
 																breaknow = TRUE;
 																break;
 															}
@@ -12909,21 +9419,8 @@ unsigned __stdcall RunExe(void *)
 														if (!WriteProcessMemory(pi.hProcess, (LPVOID)PvoidRead, &dwBMVMValue,
 															sizeof(DWORD_PTR), &dwWritten))
 														{
-															buf = 0;
-															FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																FORMAT_MESSAGE_FROM_SYSTEM |
-																FORMAT_MESSAGE_IGNORE_INSERTS,
-																NULL, GetLastError(), 0,
-																(LPSTR)&buf, 0, NULL);
-															sprintf(b, "WriteProcessMemory Error Text1VMaddress address: %p", PvoidRead);
-															lvi.pszText = (LPSTR)b;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
-															lvi.pszText = buf;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
+															LogItem("WriteProcessMemory Error Text1VMaddress address: %p", PvoidRead);
+															LogItem(NULL);
 															breaknow = TRUE;
 															break;
 														}
@@ -12941,21 +9438,8 @@ unsigned __stdcall RunExe(void *)
 														if (!VirtualProtectEx(childhProcess, (LPVOID)UPX1VMaddress,
 															UPX1VMsize, PEOldProtect, &PESecProtect))
 														{
-															buf = 0;
-															FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																FORMAT_MESSAGE_FROM_SYSTEM |
-																FORMAT_MESSAGE_IGNORE_INSERTS,
-																NULL, GetLastError(), 0,
-																(LPSTR)&buf, 0, NULL);
-															sprintf(b, "VirtualProtectEx Error GUARD_PAGE address: %p", UPX1VMaddress);
-															lvi.pszText = (LPSTR)b;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
-															lvi.pszText = buf;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
+															LogItem("VirtualProtectEx Error GUARD_PAGE address: %p", UPX1VMaddress);
+															LogItem(NULL);
 															breaknow = TRUE;
 															break;
 														}
@@ -12966,21 +9450,8 @@ unsigned __stdcall RunExe(void *)
 														if (!VirtualProtectEx(childhProcess, (LPVOID)ItextVMaddress,
 															ItextVMsize, PEOldProtect, &PESecProtect))
 														{
-															buf = 0;
-															FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																FORMAT_MESSAGE_FROM_SYSTEM |
-																FORMAT_MESSAGE_IGNORE_INSERTS,
-																NULL, GetLastError(), 0,
-																(LPSTR)&buf, 0, NULL);
-															sprintf(b, "VirtualProtectEx Error GUARD_PAGE address: %p", ItextVMaddress);
-															lvi.pszText = (LPSTR)b;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
-															lvi.pszText = buf;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
+															LogItem("VirtualProtectEx Error GUARD_PAGE address: %p", ItextVMaddress);
+															LogItem(NULL);
 															breaknow = TRUE;
 															break;
 														}
@@ -12989,21 +9460,8 @@ unsigned __stdcall RunExe(void *)
 													if (!VirtualProtectEx(childhProcess, (LPVOID)PESectionAddress,
 														PESectionSize, PEOldProtect, &PESecProtect))
 													{
-														buf = 0;
-														FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-															FORMAT_MESSAGE_FROM_SYSTEM |
-															FORMAT_MESSAGE_IGNORE_INSERTS,
-															NULL, GetLastError(), 0,
-															(LPSTR)&buf, 0, NULL);
-														sprintf(b, "VirtualProtectEx Error GUARD_PAGE address: %p", PESectionAddress);
-														lvi.pszText = (LPSTR)b;
-														lvi.iItem = numitems;
-														ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-														numitems++;
-														lvi.pszText = buf;
-														lvi.iItem = numitems;
-														ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-														numitems++;
+														LogItem("VirtualProtectEx Error GUARD_PAGE address: %p", PESectionAddress);
+														LogItem(NULL);
 														breaknow = TRUE;
 														break;
 													}
@@ -13090,70 +9548,22 @@ unsigned __stdcall RunExe(void *)
 														if (!ReadProcessMemory(childhProcess, (LPVOID)CebugEv.u.Exception.ExceptionRecord.ExceptionAddress,
 															&DwordRead, sizeof(DWORD_PTR), &dwRead))
 														{
-															buf = 0;
-															FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																FORMAT_MESSAGE_FROM_SYSTEM |
-																FORMAT_MESSAGE_IGNORE_INSERTS,
-																NULL, GetLastError(), 0,
-																(LPSTR)&buf, 0, NULL);
-															sprintf(b, "ReadProcessMemory Error GUARD_PAGE address: %p", CebugEv.u.Exception.ExceptionRecord.ExceptionAddress);
-															lvi.pszText = (LPSTR)b;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
-															lvi.pszText = buf;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
+															LogItem("ReadProcessMemory Error GUARD_PAGE address: %p", CebugEv.u.Exception.ExceptionRecord.ExceptionAddress);
+															LogItem(NULL);
 															breaknow = TRUE;
 															break;
 														}
 														DwordRead = ByteSwap2(DwordRead);
-														sprintf(ibuf, "Entry Point: %08X", (DWORD_PTR)CebugEv.u.Exception.ExceptionRecord.ExceptionAddress);
-														lvi.pszText = (LPSTR)isep;
-														lvi.iItem = numitems;
-														ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-														ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-														ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-														numitems++;
-														lvi.pszText = (LPSTR)ibuf;
-														lvi.iItem = numitems;
-														ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-														ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-														ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-														numitems++;
-														lvi.pszText = "Original Bytes:";
-														lvi.iItem = numitems;
-														ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-														ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-														ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-														numitems++;
-														sprintf(ibuf, "%08X", DwordRead);
-														lvi.pszText = (LPSTR)ibuf;
-														lvi.iItem = numitems;
-														ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-														ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-														ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-														numitems++;
+														LogItem("%s", isep);
+														LogItem("Entry Point: %08X", (DWORD_PTR)CebugEv.u.Exception.ExceptionRecord.ExceptionAddress);
+														LogItem("Original Bytes:");
+														LogItem("%08X", DwordRead);
 														// Write EBFE bytes to OEP
 														if (!WriteProcessMemory(childhProcess, CebugEv.u.Exception.ExceptionRecord.ExceptionAddress,
 															&ebfebytes, sizeof(ebfebytes), &dwWritten))
 														{
-															buf = 0;
-															FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																FORMAT_MESSAGE_FROM_SYSTEM |
-																FORMAT_MESSAGE_IGNORE_INSERTS,
-																NULL, GetLastError(), 0,
-																(LPSTR)&buf, 0, NULL);
-															sprintf(b, "WriteProcessMemory Error CopyMemII detach address: %p", CebugEv.u.Exception.ExceptionRecord.ExceptionAddress);
-															lvi.pszText = (LPSTR)b;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
-															lvi.pszText = buf;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
+															LogItem("WriteProcessMemory Error CopyMemII detach address: %p", CebugEv.u.Exception.ExceptionRecord.ExceptionAddress);
+															LogItem(NULL);
 															breaknow = TRUE;
 															break;
 														}
@@ -13162,21 +9572,8 @@ unsigned __stdcall RunExe(void *)
 														if (!WriteProcessMemory(pi.hProcess, (LPVOID)SaveDwordRead, &CebugEv,
 															sizeof(CebugEv), &dwWritten))
 														{
-															buf = 0;
-															FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																FORMAT_MESSAGE_FROM_SYSTEM |
-																FORMAT_MESSAGE_IGNORE_INSERTS,
-																NULL, GetLastError(), 0,
-																(LPSTR)&buf, 0, NULL);
-															sprintf(b, "WriteProcessMemory Error GUARD_PAGE address: %08X", SaveDwordRead);
-															lvi.pszText = (LPSTR)b;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
-															lvi.pszText = buf;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
+															LogItem("WriteProcessMemory Error GUARD_PAGE address: %08X", SaveDwordRead);
+															LogItem(NULL);
 															breaknow = TRUE;
 															break;
 														}
@@ -13195,20 +9592,10 @@ unsigned __stdcall RunExe(void *)
 													{
 														goto CHECK;
 													}
-													if (LastUpdate > 0)
-													{
-														LastUpdate = 0;
-														numitems++;
-													}
 													CreateDump(childhProcess, 0);
 													FreeVirtualMemory();
 													FreePEMemory();
 												CHECK:
-													if (LastUpdate > 0)
-													{
-														LastUpdate = 0;
-														numitems++;
-													}
 													breaknow = TRUE;	// stop debugging process
 													break;
 												}
@@ -13227,21 +9614,8 @@ unsigned __stdcall RunExe(void *)
 															if (!VirtualProtectEx(childhProcess, (LPVOID)ItextVMaddress,
 																ItextVMsize, PEOldProtect, &PESecProtect))
 															{
-																buf = 0;
-																FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																	FORMAT_MESSAGE_FROM_SYSTEM |
-																	FORMAT_MESSAGE_IGNORE_INSERTS,
-																	NULL, GetLastError(), 0,
-																	(LPSTR)&buf, 0, NULL);
-																sprintf(b, "VirtualProtectEx Error GUARD_PAGE address: %p", ItextVMaddress);
-																lvi.pszText = (LPSTR)b;
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
-																lvi.pszText = buf;
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
+																LogItem("VirtualProtectEx Error GUARD_PAGE address: %p", ItextVMaddress);
+																LogItem(NULL);
 																breaknow = TRUE;
 																break;
 															}
@@ -13250,21 +9624,8 @@ unsigned __stdcall RunExe(void *)
 															if (!VirtualProtectEx(childhProcess, (LPVOID)PESectionAddress,
 																PESectionSize, PEGuardProtect, &PEOldProtect))
 															{
-																buf = 0;
-																FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-																	FORMAT_MESSAGE_FROM_SYSTEM |
-																	FORMAT_MESSAGE_IGNORE_INSERTS,
-																	NULL, GetLastError(), 0,
-																	(LPSTR)&buf, 0, NULL);
-																sprintf(b, "VirtualProtectEx Error GUARD_PAGE address: %p", PESectionAddress);
-																lvi.pszText = (LPSTR)b;
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
-																lvi.pszText = buf;
-																lvi.iItem = numitems;
-																ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-																numitems++;
+																LogItem("VirtualProtectEx Error GUARD_PAGE address: %p", PESectionAddress);
+																LogItem(NULL);
 																breaknow = TRUE;
 																break;
 															}
@@ -13291,23 +9652,14 @@ unsigned __stdcall RunExe(void *)
 														if (traceon)
 														{
 															traceon = FALSE;
-															lvi.pszText = (LPSTR)isep;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
-															lvi.pszText = "Tracing to OEP...";
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
+															LogItem("%s", isep);
+															LogItem("Tracing to OEP...");
 														}
 														if (GetTickCount() - LastUpdate > 500)
 														{
 															LastUpdate = GetTickCount();
-															ListView_DeleteItem(hwndIDLISTVIEW, numitems);
-															sprintf(ibuf, "Context.Eip: %08X", Context.Eip);
-															lvi.pszText = (LPSTR)ibuf;
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
+															logitemreplace = TRUE;
+															LogItem("Context.Eip: %08X", Context.Eip);
 														}
 														FreeArmDASMMemory();
 													}
@@ -13331,24 +9683,10 @@ unsigned __stdcall RunExe(void *)
 											// Save some addresses
 											BaseOfImage = CebugEv.u.CreateProcessInfo.lpBaseOfImage;
 											dwBase = BaseOfImage;
-											lvi.pszText = (LPSTR)isep;
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
-											lvi.pszText = "Debug Blocker detected";
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
-											sprintf(ibuf, "child Process ID: %X", childpid);
-											lvi.pszText = (LPSTR)ibuf;
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
-											sprintf(ibuf, "child Thread ID: %X", childtid);
-											lvi.pszText = (LPSTR)ibuf;
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
+											LogItem("%s", isep);
+											LogItem("Debug Blocker detected");
+											LogItem("child Process ID: %X", childpid);
+											LogItem("child Thread ID: %X", childtid);
 										CHECKDB:
 											if (checkdb)
 											{
@@ -13356,61 +9694,21 @@ unsigned __stdcall RunExe(void *)
 												if (!ReadProcessMemory(childhProcess, StartAddress,
 													&DwordRead, sizeof(DWORD_PTR), &dwRead))
 												{
-													buf = 0;
-													FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-														FORMAT_MESSAGE_FROM_SYSTEM |
-														FORMAT_MESSAGE_IGNORE_INSERTS,
-														NULL, GetLastError(), 0,
-														(LPSTR)&buf, 0, NULL);
-													sprintf(b, "ReadProcessMemory Error CREATE_PROCESS_DEBUG_EVENT address: %p", StartAddress);
-													lvi.pszText = (LPSTR)b;
-													lvi.iItem = numitems;
-													ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-													numitems++;
-													lvi.pszText = buf;
-													lvi.iItem = numitems;
-													ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-													numitems++;
+													LogItem("ReadProcessMemory Error CREATE_PROCESS_DEBUG_EVENT address: %p", StartAddress);
+													LogItem(NULL);
 													breaknow = TRUE;
 													break;
 												}
 												DwordRead = ByteSwap2(DwordRead);
-												sprintf(ibuf, "Entry Point: %p", StartAddress);
-												lvi.pszText = (LPSTR)isep;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
-												lvi.pszText = (LPSTR)ibuf;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
-												lvi.pszText = "Original Bytes:";
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
-												sprintf(ibuf, "%08X", DwordRead);
-												lvi.pszText = (LPSTR)ibuf;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
+												LogItem("%s", isep);
+												LogItem("Entry Point: %p", StartAddress);
+												LogItem("Original Bytes:");
+												LogItem("%08X", DwordRead);
 												if (!WriteProcessMemory(childhProcess, (LPVOID)StartAddress,
 													&ebfebytes, sizeof(ebfebytes), &dwWritten))
 												{
-													buf = 0;
-													FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-														FORMAT_MESSAGE_FROM_SYSTEM |
-														FORMAT_MESSAGE_IGNORE_INSERTS,
-														NULL, GetLastError(), 0,
-														(LPSTR)&buf, 0, NULL);
-													sprintf(b, "WriteProcessMemory Error debug block OEP address: %p", StartAddress);
-													lvi.pszText = (LPSTR)b;
-													lvi.iItem = numitems;
-													ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-													numitems++;
-													lvi.pszText = buf;
-													lvi.iItem = numitems;
-													ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-													numitems++;
+													LogItem("WriteProcessMemory Error debug block OEP address: %p", StartAddress);
+													LogItem(NULL);
 													breaknow = TRUE;
 												}
 												// Mod debug information exception code to a BreakPoint 0x80000003
@@ -13419,21 +9717,8 @@ unsigned __stdcall RunExe(void *)
 												if (!WriteProcessMemory(pi.hProcess, (LPVOID)SaveDwordRead, &CebugEv,
 													sizeof(CebugEv), &dwWritten))
 												{
-													buf = 0;
-													FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-														FORMAT_MESSAGE_FROM_SYSTEM |
-														FORMAT_MESSAGE_IGNORE_INSERTS,
-														NULL, GetLastError(), 0,
-														(LPSTR)&buf, 0, NULL);
-													sprintf(b, "WriteProcessMemory Error GUARD_PAGE address: %08X", SaveDwordRead);
-													lvi.pszText = (LPSTR)b;
-													lvi.iItem = numitems;
-													ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-													numitems++;
-													lvi.pszText = buf;
-													lvi.iItem = numitems;
-													ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-													numitems++;
+													LogItem("WriteProcessMemory Error GUARD_PAGE address: %08X", SaveDwordRead);
+													LogItem(NULL);
 													breaknow = TRUE;
 													break;
 												}
@@ -13444,21 +9729,8 @@ unsigned __stdcall RunExe(void *)
 											if (!WriteProcessMemory(childhProcess, (LPVOID)SWBPExceptionAddress[13], &replbyte[13],
 												sizeof(BYTE), &dwWritten))
 											{
-												buf = 0;
-												FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-													FORMAT_MESSAGE_FROM_SYSTEM |
-													FORMAT_MESSAGE_IGNORE_INSERTS,
-													NULL, GetLastError(), 0,
-													(LPSTR)&buf, 0, NULL);
-												sprintf(b, "WriteProcessMemory Error OutputDebugStringA address: %p", SWBPExceptionAddress[13]);
-												lvi.pszText = (LPSTR)b;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
-												lvi.pszText = buf;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
+												LogItem("WriteProcessMemory Error OutputDebugStringA address: %p", SWBPExceptionAddress[13]);
+												LogItem(NULL);
 												breaknow = TRUE;
 												break;
 											}
@@ -13468,21 +9740,8 @@ unsigned __stdcall RunExe(void *)
 												if (!WriteProcessMemory(childhProcess, SWBPExceptionAddress[1], &replbyte[1],
 													sizeof(BYTE), &dwWritten))
 												{
-													buf = 0;
-													FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-														FORMAT_MESSAGE_FROM_SYSTEM |
-														FORMAT_MESSAGE_IGNORE_INSERTS,
-														NULL, GetLastError(), 0,
-														(LPSTR)&buf, 0, NULL);
-													sprintf(b, "WriteProcessMemory Error VirtualAlloc address: %p", SWBPExceptionAddress[1]);
-													lvi.pszText = (LPSTR)b;
-													lvi.iItem = numitems;
-													ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-													numitems++;
-													lvi.pszText = buf;
-													lvi.iItem = numitems;
-													ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-													numitems++;
+													LogItem("WriteProcessMemory Error VirtualAlloc address: %p", SWBPExceptionAddress[1]);
+													LogItem(NULL);
 												}
 											}
 											break;
@@ -13492,15 +9751,8 @@ unsigned __stdcall RunExe(void *)
 											if (LastUpdate > 0)
 											{
 												LastUpdate = 0;
-												numitems++;
 											}
-											sprintf(ibuf, "child Exit Process ID: %X", childpid);
-											lvi.pszText = (LPSTR)ibuf;
-											lvi.iItem = numitems;
-											ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-											ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
+											LogItem("child Exit Process ID: %X", childpid);
 											breaknow = TRUE;
 											CloseHandle(childhProcess);
 											childhProcess = 0;
@@ -13529,21 +9781,8 @@ unsigned __stdcall RunExe(void *)
 									if (!ReadProcessMemory(pi.hProcess, (LPVOID)PvoidAddr, &PvoidRead,
 										sizeof(DWORD_PTR), &dwRead))
 									{
-										buf = 0;
-										FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-											FORMAT_MESSAGE_FROM_SYSTEM |
-											FORMAT_MESSAGE_IGNORE_INSERTS,
-											NULL, GetLastError(), 0,
-											(LPSTR)&buf, 0, NULL);
-										sprintf(b, "ReadProcessMemory Error CreateThread address: %p", PvoidAddr);
-										lvi.pszText = (LPSTR)b;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
-										lvi.pszText = buf;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
+										LogItem("ReadProcessMemory Error CreateThread address: %p", PvoidAddr);
+										LogItem(NULL);
 									}
 									// See if the Call was made from Arm VM
 									// This value should fall within Armadillo VM
@@ -13557,34 +9796,15 @@ unsigned __stdcall RunExe(void *)
 										// If this is a UPX compressed program use UPX1 section
 										if (UPX1VMaddress != 0x00000000)
 										{
-											lvi.pszText = (LPSTR)isep;
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
-											lvi.pszText = "UPX compression detected, decompressing...";
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
+											LogItem("%s", isep);
+											LogItem("UPX compression detected, decompressing...");
 											Target = new BYTE[UPX1VMsize];
 											// Read the base module's process address space into our process memory
 											if (!ReadProcessMemory(pi.hProcess, UPX1VMaddress, &Target[0],
 												UPX1VMsize, &dwRead))
 											{
-												buf = 0;
-												FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-													FORMAT_MESSAGE_FROM_SYSTEM |
-													FORMAT_MESSAGE_IGNORE_INSERTS,
-													NULL, GetLastError(), 0,
-													(LPSTR)&buf, 0, NULL);
-												sprintf(b, "ReadProcessMemory Error WaitForDebugEvent address: %p", UPX1VMaddress);
-												lvi.pszText = (LPSTR)b;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
-												lvi.pszText = buf;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
+												LogItem("ReadProcessMemory Error WaitForDebugEvent address: %p", UPX1VMaddress);
+												LogItem(NULL);
 												breaknow = TRUE;
 												break;
 											}
@@ -13611,10 +9831,7 @@ unsigned __stdcall RunExe(void *)
 														else if (jmpconst >= (ulong)UPX1VMaddress &&
 															jmpconst <= (ulong)UPX1VMaddress + UPX1VMsize)
 														{
-															lvi.pszText = "Warning: JMP destination section UPX1, not OEP!";
-															lvi.iItem = numitems;
-															ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-															numitems++;
+															LogItem("Warning: JMP destination section UPX1, not OEP!");
 															break;
 														}
 														else
@@ -13632,33 +9849,14 @@ unsigned __stdcall RunExe(void *)
 											}
 											if (jmpconst == 0)
 											{
-												lvi.pszText = "JMP UPX0 instruction not found in section UPX1";
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
-												lvi.pszText = "Unable to set breakpoint, using trace";
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
+												LogItem("JMP UPX0 instruction not found in section UPX1");
+												LogItem("Unable to set breakpoint, using trace");
 												// Turn on Guard_Page attribute in UPX1 section
 												if (!VirtualProtectEx(pi.hProcess, (LPVOID)UPX1VMaddress,
 													UPX1VMsize, PEGuardProtect, &PEOldProtect))
 												{
-													buf = 0;
-													FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-														FORMAT_MESSAGE_FROM_SYSTEM |
-														FORMAT_MESSAGE_IGNORE_INSERTS,
-														NULL, GetLastError(), 0,
-														(LPSTR)&buf, 0, NULL);
-													sprintf(b, "VirtualProtectEx Error CreateThread address: %p", UPX1VMaddress);
-													lvi.pszText = (LPSTR)b;
-													lvi.iItem = numitems;
-													ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-													numitems++;
-													lvi.pszText = buf;
-													lvi.iItem = numitems;
-													ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-													numitems++;
+													LogItem("VirtualProtectEx Error CreateThread address: %p", UPX1VMaddress);
+													LogItem(NULL);
 													breaknow = TRUE;
 													break;
 												}
@@ -13681,21 +9879,8 @@ unsigned __stdcall RunExe(void *)
 											if (!VirtualProtectEx(pi.hProcess, (LPVOID)ItextVMaddress,
 												ItextVMsize, PEGuardProtect, &PEOldProtect))
 											{
-												buf = 0;
-												FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-													FORMAT_MESSAGE_FROM_SYSTEM |
-													FORMAT_MESSAGE_IGNORE_INSERTS,
-													NULL, GetLastError(), 0,
-													(LPSTR)&buf, 0, NULL);
-												sprintf(b, "VirtualProtectEx Error CreateThread address: %p", ItextVMaddress);
-												lvi.pszText = (LPSTR)b;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
-												lvi.pszText = buf;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
+												LogItem("VirtualProtectEx Error CreateThread address: %p", ItextVMaddress);
+												LogItem(NULL);
 												breaknow = TRUE;
 												break;
 											}
@@ -13708,21 +9893,8 @@ unsigned __stdcall RunExe(void *)
 											if (!VirtualProtectEx(pi.hProcess, (LPVOID)PESectionAddress,
 												PESectionSize, PEGuardProtect, &PEOldProtect))
 											{
-												buf = 0;
-												FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-													FORMAT_MESSAGE_FROM_SYSTEM |
-													FORMAT_MESSAGE_IGNORE_INSERTS,
-													NULL, GetLastError(), 0,
-													(LPSTR)&buf, 0, NULL);
-												sprintf(b, "VirtualProtectEx Error CreateThread address: %p", PESectionAddress);
-												lvi.pszText = (LPSTR)b;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
-												lvi.pszText = buf;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
+												LogItem("VirtualProtectEx Error CreateThread address: %p", PESectionAddress);
+												LogItem(NULL);
 												breaknow = TRUE;
 												break;
 											}
@@ -13730,21 +9902,8 @@ unsigned __stdcall RunExe(void *)
 											if (!WriteProcessMemory(pi.hProcess, (LPVOID)SWBPExceptionAddress[2], &replbyte[2],
 												sizeof(BYTE), &dwWritten))
 											{
-												buf = 0;
-												FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-													FORMAT_MESSAGE_FROM_SYSTEM |
-													FORMAT_MESSAGE_IGNORE_INSERTS,
-													NULL, GetLastError(), 0,
-													(LPSTR)&buf, 0, NULL);
-												sprintf(b, "WriteProcessMemory Error CreateFileA address: %p", SWBPExceptionAddress[2]);
-												lvi.pszText = (LPSTR)b;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
-												lvi.pszText = buf;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
+												LogItem("WriteProcessMemory Error CreateFileA address: %p", SWBPExceptionAddress[2]);
+												LogItem(NULL);
 												breaknow = TRUE;
 												break;
 											}
@@ -13766,21 +9925,8 @@ unsigned __stdcall RunExe(void *)
 									if (!VirtualProtectEx(pi.hProcess, (LPVOID)PESectionAddress,
 										PESectionSize, PEGuardProtect, &PEOldProtect))
 									{
-										buf = 0;
-										FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-											FORMAT_MESSAGE_FROM_SYSTEM |
-											FORMAT_MESSAGE_IGNORE_INSERTS,
-											NULL, GetLastError(), 0,
-											(LPSTR)&buf, 0, NULL);
-										sprintf(b, "VirtualProtectEx Error UPX address: %p", PESectionAddress);
-										lvi.pszText = (LPSTR)b;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
-										lvi.pszText = buf;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
+										LogItem("VirtualProtectEx Error UPX address: %p", PESectionAddress);
+										LogItem(NULL);
 										breaknow = TRUE;
 										break;
 									}
@@ -13812,21 +9958,8 @@ unsigned __stdcall RunExe(void *)
 									if (!ReadProcessMemory(pi.hProcess, (LPVOID)PvoidAddr, &DwordRead,
 										sizeof(DWORD_PTR), &dwRead))
 									{
-										buf = 0;
-										FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-											FORMAT_MESSAGE_FROM_SYSTEM |
-											FORMAT_MESSAGE_IGNORE_INSERTS,
-											NULL, GetLastError(), 0,
-											(LPSTR)&buf, 0, NULL);
-										sprintf(b, "ReadProcessMemory Error IAT elimination address: %p", PvoidAddr);
-										lvi.pszText = (LPSTR)b;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
-										lvi.pszText = buf;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
+										LogItem("ReadProcessMemory Error IAT elimination address: %p", PvoidAddr);
+										LogItem(NULL);
 										breaknow = TRUE;
 										break;
 									}
@@ -13841,60 +9974,28 @@ unsigned __stdcall RunExe(void *)
 											if (!ReadProcessMemory(pi.hProcess, (LPVOID)SWBPExceptionAddress[12], &scanbyte[12],
 												sizeof(BYTE), &dwRead))
 											{
-												buf = 0;
-												FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-													FORMAT_MESSAGE_FROM_SYSTEM |
-													FORMAT_MESSAGE_IGNORE_INSERTS,
-													NULL, GetLastError(), 0,
-													(LPSTR)&buf, 0, NULL);
-												sprintf(b, "ReadProcessMemory Error IAT elimination address: %p", SWBPExceptionAddress[12]);
-												lvi.pszText = (LPSTR)b;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
-												lvi.pszText = buf;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
+												LogItem("ReadProcessMemory Error IAT elimination address: %p", SWBPExceptionAddress[12]);
+												LogItem(NULL);
 												breaknow = TRUE;
 												break;
 											}
 											if (!WriteProcessMemory(pi.hProcess, (LPVOID)SWBPExceptionAddress[12], &replbyte[12],
 												sizeof(BYTE), &dwWritten))
 											{
-												buf = 0;
-												FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-													FORMAT_MESSAGE_FROM_SYSTEM |
-													FORMAT_MESSAGE_IGNORE_INSERTS,
-													NULL, GetLastError(), 0,
-													(LPSTR)&buf, 0, NULL);
-												sprintf(b, "WriteProcessMemory Error IAT elimination address: %p", SWBPExceptionAddress[12]);
-												lvi.pszText = (LPSTR)b;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
-												lvi.pszText = buf;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
+												LogItem("WriteProcessMemory Error IAT elimination address: %p", SWBPExceptionAddress[12]);
+												LogItem(NULL);
 												breaknow = TRUE;
 												break;
 											}
 										}
 										else
 										{
-											lvi.pszText = "Warning: Cannot fix security.dll error";
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
+											LogItem("Warning: Cannot fix security.dll error");
 										}
 									}
 									else
 									{
-										lvi.pszText = "Warning: Cannot fix security.dll error";
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
+										LogItem("Warning: Cannot fix security.dll error");
 									}
 									l = 20;
 									break;
@@ -13905,21 +10006,8 @@ unsigned __stdcall RunExe(void *)
 									if (!ReadProcessMemory(pi.hProcess, (LPVOID)PvoidAddr, &DwordRead,
 										sizeof(DWORD_PTR), &dwRead))
 									{
-										buf = 0;
-										FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-											FORMAT_MESSAGE_FROM_SYSTEM |
-											FORMAT_MESSAGE_IGNORE_INSERTS,
-											NULL, GetLastError(), 0,
-											(LPSTR)&buf, 0, NULL);
-										sprintf(b, "ReadProcessMemory Error OpenMutexA address: %p", PvoidAddr);
-										lvi.pszText = (LPSTR)b;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
-										lvi.pszText = buf;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
+										LogItem("ReadProcessMemory Error OpenMutexA address: %p", PvoidAddr);
+										LogItem(NULL);
 										breaknow = TRUE;
 										break;
 									}
@@ -13960,11 +10048,7 @@ unsigned __stdcall RunExe(void *)
 									// our dll's load address and entry point
 									if (!EnumProcessModules(pi.hProcess, hMods, sizeof(hMods), &cbNeeded))
 									{
-										sprintf(b, "function: EnumProcessModules Error; module: psapi.dll");
-										lvi.pszText = (LPSTR)b;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
+										LogItem("function: EnumProcessModules Error; module: psapi.dll");
 										breaknow = TRUE;
 										goto EMDONE;
 									}
@@ -14025,24 +10109,15 @@ unsigned __stdcall RunExe(void *)
 													if (PdataVMaddress == 0x00000000)
 													{
 														// We have a problem
-														lvi.pszText = "No .pdata section found in PE header!";
-														lvi.iItem = numitems;
-														ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-														numitems++;
-														lvi.pszText = "This doesn't appear to be an Armadillo protected program!";
-														lvi.iItem = numitems;
-														ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-														numitems++;
+														LogItem("No .pdata section found in PE header!");
+														LogItem("This doesn't appear to be an Armadillo protected program!");
 														breaknow = TRUE;
 														break;
 													}
 													if (TextVMaddress == 0x00000000)
 													{
 														// We have a problem
-														lvi.pszText = "No .text section found in PE header!";
-														lvi.iItem = numitems;
-														ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-														numitems++;
+														LogItem("No .text section found in PE header!");
 														breaknow = TRUE;
 														break;
 													}
@@ -14056,14 +10131,8 @@ unsigned __stdcall RunExe(void *)
 													else
 													{
 														// We have a problem
-														lvi.pszText = "This doesn't appear to be an Armadillo protected program!";
-														lvi.iItem = numitems;
-														ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-														numitems++;
-														lvi.pszText = "The EP is not within the range of PE section .text1";
-														lvi.iItem = numitems;
-														ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-														numitems++;
+														LogItem("This doesn't appear to be an Armadillo protected program!");
+														LogItem("The EP is not within the range of PE section .text1");
 														break;
 													}
 													i = nMods;
@@ -14096,21 +10165,8 @@ unsigned __stdcall RunExe(void *)
 									if (!ReadProcessMemory(pi.hProcess, (LPVOID)PvoidAddr, &PvoidRead,
 										sizeof(DWORD_PTR), &dwRead))
 									{
-										buf = 0;
-										FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-											FORMAT_MESSAGE_FROM_SYSTEM |
-											FORMAT_MESSAGE_IGNORE_INSERTS,
-											NULL, GetLastError(), 0,
-											(LPSTR)&buf, 0, NULL);
-										sprintf(b, "ReadProcessMemory Error OutputDebugStringA address: %p", PvoidAddr);
-										lvi.pszText = (LPSTR)b;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
-										lvi.pszText = buf;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
+										LogItem("ReadProcessMemory Error OutputDebugStringA address: %p", PvoidAddr);
+										LogItem(NULL);
 										breaknow = TRUE;
 										break;
 									}
@@ -14127,10 +10183,7 @@ unsigned __stdcall RunExe(void *)
 										if (!DetermineARMVM(pi.hProcess, 1))
 										{
 											// We have a problem
-											lvi.pszText = "Virtual Armadillo dll missing!";
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
+											LogItem("Virtual Armadillo dll missing!");
 											breaknow = TRUE;
 											break;
 										}
@@ -14142,21 +10195,8 @@ unsigned __stdcall RunExe(void *)
 											if (!WriteProcessMemory(pi.hProcess, (LPVOID)SWBPExceptionAddress[1], &replbyte[1],
 												sizeof(BYTE), &dwWritten))
 											{
-												buf = 0;
-												FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-													FORMAT_MESSAGE_FROM_SYSTEM |
-													FORMAT_MESSAGE_IGNORE_INSERTS,
-													NULL, GetLastError(), 0,
-													(LPSTR)&buf, 0, NULL);
-												sprintf(b, "WriteProcessMemory Error VirtualAlloc address: %p", SWBPExceptionAddress[1]);
-												lvi.pszText = (LPSTR)b;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
-												lvi.pszText = buf;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
+												LogItem("WriteProcessMemory Error VirtualAlloc address: %p", SWBPExceptionAddress[1]);
+												LogItem(NULL);
 												breaknow = TRUE;
 												break;
 											}
@@ -14164,21 +10204,8 @@ unsigned __stdcall RunExe(void *)
 											if (!WriteProcessMemory(pi.hProcess, (LPVOID)SWBPExceptionAddress[15], &replbyte[15],
 												sizeof(BYTE), &dwWritten))
 											{
-												buf = 0;
-												FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-													FORMAT_MESSAGE_FROM_SYSTEM |
-													FORMAT_MESSAGE_IGNORE_INSERTS,
-													NULL, GetLastError(), 0,
-													(LPSTR)&buf, 0, NULL);
-												sprintf(b, "WriteProcessMemory Error CreateFileMappingA address: %p", SWBPExceptionAddress[15]);
-												lvi.pszText = (LPSTR)b;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
-												lvi.pszText = buf;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
+												LogItem("WriteProcessMemory Error CreateFileMappingA address: %p", SWBPExceptionAddress[15]);
+												LogItem(NULL);
 												breaknow = TRUE;
 												break;
 											}
@@ -14186,21 +10213,8 @@ unsigned __stdcall RunExe(void *)
 											if (!WriteProcessMemory(pi.hProcess, (LPVOID)SWBPExceptionAddress[16], &replbyte[16],
 												sizeof(BYTE), &dwWritten))
 											{
-												buf = 0;
-												FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-													FORMAT_MESSAGE_FROM_SYSTEM |
-													FORMAT_MESSAGE_IGNORE_INSERTS,
-													NULL, GetLastError(), 0,
-													(LPSTR)&buf, 0, NULL);
-												sprintf(b, "WriteProcessMemory Error GetModuleFileNameA address: %p", SWBPExceptionAddress[16]);
-												lvi.pszText = (LPSTR)b;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
-												lvi.pszText = buf;
-												lvi.iItem = numitems;
-												ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-												numitems++;
+												LogItem("WriteProcessMemory Error GetModuleFileNameA address: %p", SWBPExceptionAddress[16]);
+												LogItem(NULL);
 												breaknow = TRUE;
 												break;
 											}
@@ -14210,21 +10224,8 @@ unsigned __stdcall RunExe(void *)
 												if (!WriteProcessMemory(pi.hProcess, (LPVOID)SWBPExceptionAddress[11], &replbyte[11],
 													sizeof(BYTE), &dwWritten))
 												{
-													buf = 0;
-													FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-														FORMAT_MESSAGE_FROM_SYSTEM |
-														FORMAT_MESSAGE_IGNORE_INSERTS,
-														NULL, GetLastError(), 0,
-														(LPSTR)&buf, 0, NULL);
-													sprintf(b, "WriteProcessMemory Error isdll address: %p", SWBPExceptionAddress[11]);
-													lvi.pszText = (LPSTR)b;
-													lvi.iItem = numitems;
-													ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-													numitems++;
-													lvi.pszText = buf;
-													lvi.iItem = numitems;
-													ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-													numitems++;
+													LogItem("WriteProcessMemory Error isdll address: %p", SWBPExceptionAddress[11]);
+													LogItem(NULL);
 													breaknow = TRUE;
 													break;
 												}
@@ -14260,21 +10261,8 @@ unsigned __stdcall RunExe(void *)
 									if (!WriteProcessMemory(pi.hProcess, SWBPExceptionAddress[4], &replbyte[4],
 										sizeof(BYTE), &dwWritten))
 									{
-										buf = 0;
-										FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-											FORMAT_MESSAGE_FROM_SYSTEM |
-											FORMAT_MESSAGE_IGNORE_INSERTS,
-											NULL, GetLastError(), 0,
-											(LPSTR)&buf, 0, NULL);
-										sprintf(b, "WriteProcessMemory Error GetModuleHandleA address: %p", SWBPExceptionAddress[4]);
-										lvi.pszText = (LPSTR)b;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
-										lvi.pszText = buf;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
+										LogItem("WriteProcessMemory Error GetModuleHandleA address: %p", SWBPExceptionAddress[4]);
+										LogItem(NULL);
 										breaknow = TRUE;
 										break;
 									}
@@ -14287,21 +10275,8 @@ unsigned __stdcall RunExe(void *)
 									if (!ReadProcessMemory(pi.hProcess, PvoidAddr, &PvoidRead,
 										sizeof(DWORD_PTR), &dwRead))
 									{
-										buf = 0;
-										FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-											FORMAT_MESSAGE_FROM_SYSTEM |
-											FORMAT_MESSAGE_IGNORE_INSERTS,
-											NULL, GetLastError(), 0,
-											(LPSTR)&buf, 0, NULL);
-										sprintf(b, "ReadProcessMemory Error GetModuleHandleA address: %p", PvoidAddr);
-										lvi.pszText = (LPSTR)b;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
-										lvi.pszText = buf;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
+										LogItem("ReadProcessMemory Error GetModuleHandleA address: %p", PvoidAddr);
+										LogItem(NULL);
 										breaknow = TRUE;
 										break;
 									}
@@ -14313,10 +10288,7 @@ unsigned __stdcall RunExe(void *)
 										if (!DetermineARMVM(pi.hProcess, 0))
 										{
 											// We have a problem
-											lvi.pszText = "Virtual Armadillo dll missing!";
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
+											LogItem("Virtual Armadillo dll missing!");
 											breaknow = TRUE;
 											break;
 										}
@@ -14388,21 +10360,8 @@ unsigned __stdcall RunExe(void *)
 							if (!WriteProcessMemory(pi.hProcess, (LPVOID)SWBPExceptionAddress[1], &replbyte[1],
 								sizeof(BYTE), &dwWritten))
 							{
-								buf = 0;
-								FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-									FORMAT_MESSAGE_FROM_SYSTEM |
-									FORMAT_MESSAGE_IGNORE_INSERTS,
-									NULL, GetLastError(), 0,
-									(LPSTR)&buf, 0, NULL);
-								sprintf(b, "WriteProcessMemory Error VirtualAlloc address: %p", SWBPExceptionAddress[1]);
-								lvi.pszText = (LPSTR)b;
-								lvi.iItem = numitems;
-								ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-								numitems++;
-								lvi.pszText = buf;
-								lvi.iItem = numitems;
-								ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-								numitems++;
+								LogItem("WriteProcessMemory Error VirtualAlloc address: %p", SWBPExceptionAddress[1]);
+								LogItem(NULL);
 								breaknow = TRUE;
 								break;
 							}
@@ -14414,21 +10373,8 @@ unsigned __stdcall RunExe(void *)
 							if (!WriteProcessMemory(pi.hProcess, (LPVOID)SWBPExceptionAddress[6], &replbyte[6],
 								sizeof(BYTE), &dwWritten))
 							{
-								buf = 0;
-								FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-									FORMAT_MESSAGE_FROM_SYSTEM |
-									FORMAT_MESSAGE_IGNORE_INSERTS,
-									NULL, GetLastError(), 0,
-									(LPSTR)&buf, 0, NULL);
-								sprintf(b, "WriteProcessMemory Error CreateThread address: %p", SWBPExceptionAddress[6]);
-								lvi.pszText = (LPSTR)b;
-								lvi.iItem = numitems;
-								ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-								numitems++;
-								lvi.pszText = buf;
-								lvi.iItem = numitems;
-								ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-								numitems++;
+								LogItem("WriteProcessMemory Error CreateThread address: %p", SWBPExceptionAddress[6]);
+								LogItem(NULL);
 								breaknow = TRUE;
 								break;
 							}
@@ -14440,21 +10386,8 @@ unsigned __stdcall RunExe(void *)
 							if (!WriteProcessMemory(pi.hProcess, (LPVOID)SWBPExceptionAddress[4], &replbyte[4],
 								sizeof(BYTE), &dwWritten))
 							{
-								buf = 0;
-								FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-									FORMAT_MESSAGE_FROM_SYSTEM |
-									FORMAT_MESSAGE_IGNORE_INSERTS,
-									NULL, GetLastError(), 0,
-									(LPSTR)&buf, 0, NULL);
-								sprintf(b, "WriteProcessMemory Error GetModuleHandleA address: %p", SWBPExceptionAddress[4]);
-								lvi.pszText = (LPSTR)b;
-								lvi.iItem = numitems;
-								ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-								numitems++;
-								lvi.pszText = buf;
-								lvi.iItem = numitems;
-								ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-								numitems++;
+								LogItem("WriteProcessMemory Error GetModuleHandleA address: %p", SWBPExceptionAddress[4]);
+								LogItem(NULL);
 								breaknow = TRUE;
 								break;
 							}
@@ -14466,21 +10399,8 @@ unsigned __stdcall RunExe(void *)
 							if (!WriteProcessMemory(pi.hProcess, (LPVOID)SWBPExceptionAddress[16], &replbyte[16],
 								sizeof(BYTE), &dwWritten))
 							{
-								buf = 0;
-								FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-									FORMAT_MESSAGE_FROM_SYSTEM |
-									FORMAT_MESSAGE_IGNORE_INSERTS,
-									NULL, GetLastError(), 0,
-									(LPSTR)&buf, 0, NULL);
-								sprintf(b, "WriteProcessMemory Error GetModuleFileNameA address: %p", SWBPExceptionAddress[16]);
-								lvi.pszText = (LPSTR)b;
-								lvi.iItem = numitems;
-								ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-								numitems++;
-								lvi.pszText = buf;
-								lvi.iItem = numitems;
-								ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-								numitems++;
+								LogItem("WriteProcessMemory Error GetModuleFileNameA address: %p", SWBPExceptionAddress[16]);
+								LogItem(NULL);
 								breaknow = TRUE;
 								break;
 							}
@@ -14492,21 +10412,8 @@ unsigned __stdcall RunExe(void *)
 							if (!WriteProcessMemory(pi.hProcess, (LPVOID)SWBPExceptionAddress[2], &replbyte[2],
 								sizeof(BYTE), &dwWritten))
 							{
-								buf = 0;
-								FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-									FORMAT_MESSAGE_FROM_SYSTEM |
-									FORMAT_MESSAGE_IGNORE_INSERTS,
-									NULL, GetLastError(), 0,
-									(LPSTR)&buf, 0, NULL);
-								sprintf(b, "WriteProcessMemory Error CreateFileA address: %p", SWBPExceptionAddress[2]);
-								lvi.pszText = (LPSTR)b;
-								lvi.iItem = numitems;
-								ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-								numitems++;
-								lvi.pszText = buf;
-								lvi.iItem = numitems;
-								ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-								numitems++;
+								LogItem("WriteProcessMemory Error CreateFileA address: %p", SWBPExceptionAddress[2]);
+								LogItem(NULL);
 								breaknow = TRUE;
 								break;
 							}
@@ -14518,21 +10425,8 @@ unsigned __stdcall RunExe(void *)
 							if (!WriteProcessMemory(pi.hProcess, (LPVOID)SWBPExceptionAddress[10], &replbyte[10],
 								sizeof(BYTE), &dwWritten))
 							{
-								buf = 0;
-								FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-									FORMAT_MESSAGE_FROM_SYSTEM |
-									FORMAT_MESSAGE_IGNORE_INSERTS,
-									NULL, GetLastError(), 0,
-									(LPSTR)&buf, 0, NULL);
-								sprintf(b, "WriteProcessMemory Error OpenMutexA address: %p", SWBPExceptionAddress[10]);
-								lvi.pszText = (LPSTR)b;
-								lvi.iItem = numitems;
-								ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-								numitems++;
-								lvi.pszText = buf;
-								lvi.iItem = numitems;
-								ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-								numitems++;
+								LogItem("WriteProcessMemory Error OpenMutexA address: %p", SWBPExceptionAddress[10]);
+								LogItem(NULL);
 								breaknow = TRUE;
 								break;
 							}
@@ -14546,21 +10440,8 @@ unsigned __stdcall RunExe(void *)
 								if (!WriteProcessMemory(pi.hProcess, (LPVOID)SWBPExceptionAddress[5], &replbyte[5],
 									sizeof(BYTE), &dwWritten))
 								{
-									buf = 0;
-									FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-										FORMAT_MESSAGE_FROM_SYSTEM |
-										FORMAT_MESSAGE_IGNORE_INSERTS,
-										NULL, GetLastError(), 0,
-										(LPSTR)&buf, 0, NULL);
-									sprintf(b, "WriteProcessMemory Error WaitForDebugEvent address: %p", SWBPExceptionAddress[5]);
-									lvi.pszText = (LPSTR)b;
-									lvi.iItem = numitems;
-									ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-									numitems++;
-									lvi.pszText = buf;
-									lvi.iItem = numitems;
-									ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-									numitems++;
+									LogItem("WriteProcessMemory Error WaitForDebugEvent address: %p", SWBPExceptionAddress[5]);
+									LogItem(NULL);
 									breaknow = TRUE;
 									break;
 								}
@@ -14600,21 +10481,8 @@ unsigned __stdcall RunExe(void *)
 										if (!VirtualProtectEx(pi.hProcess, (LPVOID)ItextVMaddress,
 											ItextVMsize, PEGuardProtect, &PEOldProtect))
 										{
-											buf = 0;
-											FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-												FORMAT_MESSAGE_FROM_SYSTEM |
-												FORMAT_MESSAGE_IGNORE_INSERTS,
-												NULL, GetLastError(), 0,
-												(LPSTR)&buf, 0, NULL);
-											sprintf(b, "VirtualProtectEx Error GUARD_PAGE address: %p", ItextVMaddress);
-											lvi.pszText = (LPSTR)b;
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
-											lvi.pszText = buf;
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
+											LogItem("VirtualProtectEx Error GUARD_PAGE address: %p", ItextVMaddress);
+											LogItem(NULL);
 											breaknow = TRUE;
 											break;
 										}
@@ -14642,21 +10510,8 @@ unsigned __stdcall RunExe(void *)
 										if (!VirtualProtectEx(pi.hProcess, (LPVOID)UPX1VMaddress,
 											UPX1VMsize, PEGuardProtect, &PEOldProtect))
 										{
-											buf = 0;
-											FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-												FORMAT_MESSAGE_FROM_SYSTEM |
-												FORMAT_MESSAGE_IGNORE_INSERTS,
-												NULL, GetLastError(), 0,
-												(LPSTR)&buf, 0, NULL);
-											sprintf(b, "VirtualProtectEx Error GUARD_PAGE address: %p", UPX1VMaddress);
-											lvi.pszText = (LPSTR)b;
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
-											lvi.pszText = buf;
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
+											LogItem("VirtualProtectEx Error GUARD_PAGE address: %p", UPX1VMaddress);
+											LogItem(NULL);
 											breaknow = TRUE;
 											break;
 										}
@@ -14683,21 +10538,8 @@ unsigned __stdcall RunExe(void *)
 										if (!VirtualProtectEx(pi.hProcess, (LPVOID)PESectionAddress,
 											PESectionSize, PEGuardProtect, &PEOldProtect))
 										{
-											buf = 0;
-											FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-												FORMAT_MESSAGE_FROM_SYSTEM |
-												FORMAT_MESSAGE_IGNORE_INSERTS,
-												NULL, GetLastError(), 0,
-												(LPSTR)&buf, 0, NULL);
-											sprintf(b, "VirtualProtectEx Error GUARD_PAGE address: %p", PESectionAddress);
-											lvi.pszText = (LPSTR)b;
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
-											lvi.pszText = buf;
-											lvi.iItem = numitems;
-											ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-											numitems++;
+											LogItem("VirtualProtectEx Error GUARD_PAGE address: %p", PESectionAddress);
+											LogItem(NULL);
 											breaknow = TRUE;
 											break;
 										}
@@ -14712,23 +10554,14 @@ unsigned __stdcall RunExe(void *)
 								if (traceon)
 								{
 									traceon = FALSE;
-									lvi.pszText = (LPSTR)isep;
-									lvi.iItem = numitems;
-									ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-									numitems++;
-									lvi.pszText = "Tracing to OEP...";
-									lvi.iItem = numitems;
-									ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-									numitems++;
+									LogItem("%s", isep);
+									LogItem("Tracing to OEP...");
 								}
 								if (GetTickCount() - LastUpdate > 500)
 								{
 									LastUpdate = GetTickCount();
-									ListView_DeleteItem(hwndIDLISTVIEW, numitems);
-									sprintf(ibuf, "Context.Eip: %08X", Context.Eip);
-									lvi.pszText = (LPSTR)ibuf;
-									lvi.iItem = numitems;
-									ListView_InsertItem(hwndIDLISTVIEW, &lvi);
+									logitemreplace = TRUE;
+									LogItem("Context.Eip: %08X", Context.Eip);
 								}
 							}
 						}
@@ -14760,21 +10593,8 @@ unsigned __stdcall RunExe(void *)
 								if (!VirtualProtectEx(pi.hProcess, (LPVOID)UPX1VMaddress,
 									UPX1VMsize, PEOldProtect, &PESecProtect))
 								{
-									buf = 0;
-									FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-										FORMAT_MESSAGE_FROM_SYSTEM |
-										FORMAT_MESSAGE_IGNORE_INSERTS,
-										NULL, GetLastError(), 0,
-										(LPSTR)&buf, 0, NULL);
-									sprintf(b, "VirtualProtectEx Error GUARD_PAGE address: %p", UPX1VMaddress);
-									lvi.pszText = (LPSTR)b;
-									lvi.iItem = numitems;
-									ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-									numitems++;
-									lvi.pszText = buf;
-									lvi.iItem = numitems;
-									ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-									numitems++;
+									LogItem("VirtualProtectEx Error GUARD_PAGE address: %p", UPX1VMaddress);
+									LogItem(NULL);
 									breaknow = TRUE;
 									break;
 								}
@@ -14787,21 +10607,8 @@ unsigned __stdcall RunExe(void *)
 								if (!VirtualProtectEx(pi.hProcess, (LPVOID)ItextVMaddress,
 									ItextVMsize, PEOldProtect, &PESecProtect))
 								{
-									buf = 0;
-									FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-										FORMAT_MESSAGE_FROM_SYSTEM |
-										FORMAT_MESSAGE_IGNORE_INSERTS,
-										NULL, GetLastError(), 0,
-										(LPSTR)&buf, 0, NULL);
-									sprintf(b, "VirtualProtectEx Error GUARD_PAGE address: %p", ItextVMaddress);
-									lvi.pszText = (LPSTR)b;
-									lvi.iItem = numitems;
-									ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-									numitems++;
-									lvi.pszText = buf;
-									lvi.iItem = numitems;
-									ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-									numitems++;
+									LogItem("VirtualProtectEx Error GUARD_PAGE address: %p", ItextVMaddress);
+									LogItem(NULL);
 									breaknow = TRUE;
 									break;
 								}
@@ -14810,21 +10617,8 @@ unsigned __stdcall RunExe(void *)
 							if (!VirtualProtectEx(pi.hProcess, (LPVOID)PESectionAddress,
 								PESectionSize, PEOldProtect, &PESecProtect))
 							{
-								buf = 0;
-								FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-									FORMAT_MESSAGE_FROM_SYSTEM |
-									FORMAT_MESSAGE_IGNORE_INSERTS,
-									NULL, GetLastError(), 0,
-									(LPSTR)&buf, 0, NULL);
-								sprintf(b, "VirtualProtectEx Error GUARD_PAGE address: %p", PESectionAddress);
-								lvi.pszText = (LPSTR)b;
-								lvi.iItem = numitems;
-								ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-								numitems++;
-								lvi.pszText = buf;
-								lvi.iItem = numitems;
-								ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-								numitems++;
+								LogItem("VirtualProtectEx Error GUARD_PAGE address: %p", PESectionAddress);
+								LogItem(NULL);
 								breaknow = TRUE;
 								break;
 							}
@@ -14833,21 +10627,8 @@ unsigned __stdcall RunExe(void *)
 							if (!ReadProcessMemory(pi.hProcess, (LPVOID)PvoidAddr, &PvoidRead,
 								sizeof(DWORD_PTR), &dwRead))
 							{
-								buf = 0;
-								FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-									FORMAT_MESSAGE_FROM_SYSTEM |
-									FORMAT_MESSAGE_IGNORE_INSERTS,
-									NULL, GetLastError(), 0,
-									(LPSTR)&buf, 0, NULL);
-								sprintf(b, "ReadProcessMemory Error WaitForDebugEvent address: %p", PvoidAddr);
-								lvi.pszText = (LPSTR)b;
-								lvi.iItem = numitems;
-								ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-								numitems++;
-								lvi.pszText = buf;
-								lvi.iItem = numitems;
-								ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-								numitems++;
+								LogItem("ReadProcessMemory Error WaitForDebugEvent address: %p", PvoidAddr);
+								LogItem(NULL);
 								breaknow = TRUE;
 								break;
 							}
@@ -14925,20 +10706,10 @@ unsigned __stdcall RunExe(void *)
 							{
 								goto CHECK1;
 							}
-							if (LastUpdate > 0)
-							{
-								LastUpdate = 0;
-								numitems++;
-							}
 							CreateDump(pi.hProcess, 0);
 							FreeVirtualMemory();
 							FreePEMemory();
 						CHECK1:
-							if (LastUpdate > 0)
-							{
-								LastUpdate = 0;
-								numitems++;
-							}
 							breaknow = TRUE;	// stop debugging
 							break;
 						}
@@ -14956,21 +10727,8 @@ unsigned __stdcall RunExe(void *)
 									if (!VirtualProtectEx(pi.hProcess, (LPVOID)ItextVMaddress,
 										ItextVMsize, PEOldProtect, &PESecProtect))
 									{
-										buf = 0;
-										FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-											FORMAT_MESSAGE_FROM_SYSTEM |
-											FORMAT_MESSAGE_IGNORE_INSERTS,
-											NULL, GetLastError(), 0,
-											(LPSTR)&buf, 0, NULL);
-										sprintf(b, "VirtualProtectEx Error GUARD_PAGE address: %p", ItextVMaddress);
-										lvi.pszText = (LPSTR)b;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
-										lvi.pszText = buf;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
+										LogItem("VirtualProtectEx Error GUARD_PAGE address: %p", ItextVMaddress);
+										LogItem(NULL);
 										breaknow = TRUE;
 										break;
 									}
@@ -14979,21 +10737,8 @@ unsigned __stdcall RunExe(void *)
 									if (!VirtualProtectEx(pi.hProcess, (LPVOID)PESectionAddress,
 										PESectionSize, PEGuardProtect, &PEOldProtect))
 									{
-										buf = 0;
-										FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-											FORMAT_MESSAGE_FROM_SYSTEM |
-											FORMAT_MESSAGE_IGNORE_INSERTS,
-											NULL, GetLastError(), 0,
-											(LPSTR)&buf, 0, NULL);
-										sprintf(b, "VirtualProtectEx Error GUARD_PAGE address: %p", PESectionAddress);
-										lvi.pszText = (LPSTR)b;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
-										lvi.pszText = buf;
-										lvi.iItem = numitems;
-										ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-										numitems++;
+										LogItem("VirtualProtectEx Error GUARD_PAGE address: %p", PESectionAddress);
+										LogItem(NULL);
 										breaknow = TRUE;
 										break;
 									}
@@ -15059,21 +10804,8 @@ unsigned __stdcall RunExe(void *)
 				if (!ReadProcessMemory(pi.hProcess, (LPVOID)SWBPExceptionAddress[0], &scanbyte[0],
 					sizeof(BYTE), &dwRead))
 				{
-					buf = 0;
-					FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-						FORMAT_MESSAGE_FROM_SYSTEM |
-						FORMAT_MESSAGE_IGNORE_INSERTS,
-						NULL, GetLastError(), 0,
-						(LPSTR)&buf, 0, NULL);
-					sprintf(b, "ReadProcessMemory Error Start address: %p", SWBPExceptionAddress[0]);
-					lvi.pszText = (LPSTR)b;
-					lvi.iItem = numitems;
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
-					lvi.pszText = buf;
-					lvi.iItem = numitems;
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
+					LogItem("ReadProcessMemory Error Start address: %p", SWBPExceptionAddress[0]);
+					LogItem(NULL);
 					breaknow = TRUE;
 					CloseHandle(DebugEv.u.CreateProcessInfo.hFile);
 					break;
@@ -15081,35 +10813,16 @@ unsigned __stdcall RunExe(void *)
 				if (!WriteProcessMemory(pi.hProcess, (LPVOID)SWBPExceptionAddress[0], &replbyte[0],
 					sizeof(BYTE), &dwWritten))
 				{
-					buf = 0;
-					FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-						FORMAT_MESSAGE_FROM_SYSTEM |
-						FORMAT_MESSAGE_IGNORE_INSERTS,
-						NULL, GetLastError(), 0,
-						(LPSTR)&buf, 0, NULL);
-					sprintf(b, "WriteProcessMemory Error Start address: %p", SWBPExceptionAddress[0]);
-					lvi.pszText = (LPSTR)b;
-					lvi.iItem = numitems;
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
-					lvi.pszText = buf;
-					lvi.iItem = numitems;
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
+					LogItem("WriteProcessMemory Error Start address: %p", SWBPExceptionAddress[0]);
+					LogItem(NULL);
 					breaknow = TRUE;
 					CloseHandle(DebugEv.u.CreateProcessInfo.hFile);
 					break;
 				}
 				dwPid = DebugEv.dwProcessId;
 				dwTid = DebugEv.dwThreadId;
-				sprintf(ibuf, "Process ID: %X", dwPid);
+				LogItem("Process ID: %X", dwPid);
 				sprintf(ebuf, "Exit Process ID: %X", dwPid);
-				lvi.pszText = (LPSTR)ibuf;
-				lvi.iItem = numitems;
-				ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-				ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-				ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-				numitems++;
 				CloseHandle(DebugEv.u.CreateProcessInfo.hFile);
 				break;
 
@@ -15193,16 +10906,9 @@ unsigned __stdcall RunExe(void *)
 		SaveLogfile();
 		ClearListview(0);
 		DisassembleDump();
-		LastUpdate = 0;
-		numitems++;
 		if (pNumNanos == 0)
 		{
-			lvi.pszText = "No nanomites to process.";
-			lvi.iItem = numitems;
-			ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-			ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-			ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-			numitems++;
+			LogItem("No nanomites to process.");
 		}
 		else
 		{
@@ -15905,10 +11611,7 @@ LRESULT CALLBACK DialogProc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 				hThread = (HANDLE)_beginthreadex(NULL, 0, &RunExe, NULL, 0, &dwThreadid);
 				if (!hThread)
 				{
-					lvi.pszText = "CreateThread failed...try again!";
-					lvi.iItem = numitems;
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
+					LogItem("CreateThread failed...try again!");
 					break;
 				}
 				// Displays grayed Armadillo image denoting running process
@@ -16053,10 +11756,7 @@ LRESULT CALLBACK DialogProc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 				hThread = (HANDLE)_beginthreadex(NULL, 0, &RunExe, NULL, 0, &dwThreadid);
 				if (!hThread)
 				{
-					lvi.pszText = "CreateThread failed...try again!";
-					lvi.iItem = numitems;
-					ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-					numitems++;
+					LogItem("CreateThread failed...try again!");
 					break;
 				}
 				// Displays grayed Armadillo image denoting running process
@@ -16492,19 +12192,7 @@ LRESULT CALLBACK DialogProc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 		EndDialog(hwndDlg, 0);
 		return TRUE;
 	case WM_COMPLETED:
-		if (LastUpdate > 0)
-		{
-			LastUpdate = 0;
-			numitems++;
-		}
-		lvi.pszText = (LPSTR)ebuf;
-		lvi.iItem = numitems;
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		ListView_InsertItem(hwndIDLISTVIEW, &lvi);
-		ListView_Scroll(hwndIDLISTVIEW, 0, (int)cy);
-		ListView_EnsureVisible(hwndIDLISTVIEW, lvi.iItem, FALSE);
-		numitems++;
+		LogItem("%s", ebuf);
 		return TRUE;
 	}
 	return FALSE;
