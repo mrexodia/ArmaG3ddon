@@ -6955,11 +6955,10 @@ BOOL DoIATElimination(HANDLE thisProcess)
 				LogItem(NULL);
 				return FALSE;
 			}
-			// Allocate some zero memory for operation (15% of actual size or 6000 bytes)
-			float sizezm = .15 * (float)Data1VMsize;
-			if (sizezm < 24576)
-				sizezm = 24576;
-			SIZE_T dwsizezm = (SIZE_T)sizezm;
+			// Allocate some zero memory for operation (12.5% of actual size or 6000 bytes)
+			SIZE_T dwsizezm = Data1VMsize >> 3;
+			if (dwsizezm < 24576)
+				dwsizezm = 24576;
 			Data1NVMaddress = (LPVOID)(((DWORD_PTR)Data1VMaddress + Data1VMsize) - dwsizezm);
 			Data1NVMsize = Data1VMsize - dwsizezm;
 			dwZMVMAddress = VirtualAlloc(NULL, Data1NVMsize,
@@ -11377,7 +11376,7 @@ LRESULT CALLBACK DialogProc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 		newbmp = new Gdiplus::Bitmap(Rect.right, Rect.bottom, PixelFormat32bppPARGB);
 		gr = new Gdiplus::Graphics(newbmp);
 		oldbmp = (Gdiplus::Bitmap *)Gdiplus::Bitmap::FromHBITMAP(hBitmap01, NULL);
-		Gdiplus::RectF destrec(0, 0, Rect.right, Rect.bottom);
+		Gdiplus::Rect destrec(0, 0, Rect.right, Rect.bottom);
 		gr->Graphics::DrawImage(oldbmp, destrec, 0, 0, oldbmp->GetWidth(), oldbmp->GetHeight(), Gdiplus::UnitPixel);
 		// Creates a gdi bitmap from gdi+
 		newbmp->Bitmap::GetHBITMAP(Gdiplus::Color(0, 0, 0, 0), &newgdibmp);
@@ -11399,7 +11398,7 @@ LRESULT CALLBACK DialogProc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 		newbmp = new Gdiplus::Bitmap(Rect.right, Rect.bottom, PixelFormat32bppPARGB);
 		gr = new Gdiplus::Graphics(newbmp);
 		oldbmp = (Gdiplus::Bitmap *)Gdiplus::Bitmap::FromHBITMAP(hBitmap04, NULL);
-		Gdiplus::RectF destrec2(0, 0, Rect.right, Rect.bottom);
+		Gdiplus::Rect destrec2(0, 0, Rect.right, Rect.bottom);
 		gr->Graphics::DrawImage(oldbmp, destrec2, 0, 0, oldbmp->GetWidth(), oldbmp->GetHeight(), Gdiplus::UnitPixel);
 		// Creates a gdi bitmap from gdi+
 		newbmp->Bitmap::GetHBITMAP(Gdiplus::Color(0, 0, 0, 0), &newrefreshbmp);
@@ -11414,7 +11413,7 @@ LRESULT CALLBACK DialogProc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 		newbmp = new Gdiplus::Bitmap(Rect.right, Rect.bottom, PixelFormat32bppPARGB);
 		gr = new Gdiplus::Graphics(newbmp);
 		oldbmp = (Gdiplus::Bitmap *)Gdiplus::Bitmap::FromHBITMAP(hBitmap03, NULL);
-		Gdiplus::RectF destrec3(0, 0, Rect.right, Rect.bottom);
+		Gdiplus::Rect destrec3(0, 0, Rect.right, Rect.bottom);
 		gr->Graphics::DrawImage(oldbmp, destrec3, 0, 0, oldbmp->GetWidth(), oldbmp->GetHeight(), Gdiplus::UnitPixel);
 		// Creates a gdi bitmap from gdi+
 		newbmp->Bitmap::GetHBITMAP(Gdiplus::Color(0, 0, 0, 0), &newhelpbmp);
@@ -11429,7 +11428,7 @@ LRESULT CALLBACK DialogProc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 		newbmp = new Gdiplus::Bitmap(Rect.right, Rect.bottom, PixelFormat32bppPARGB);
 		gr = new Gdiplus::Graphics(newbmp);
 		oldbmp = (Gdiplus::Bitmap *)Gdiplus::Bitmap::FromHBITMAP(hBitmap02, NULL);
-		Gdiplus::RectF destrec1(0, 0, Rect.right, Rect.bottom);
+		Gdiplus::Rect destrec1(0, 0, Rect.right, Rect.bottom);
 		gr->Graphics::DrawImage(oldbmp, destrec1, 0, 0, oldbmp->GetWidth(), oldbmp->GetHeight(), Gdiplus::UnitPixel);
 		// Creates a gdi bitmap from gdi+
 		newbmp->Bitmap::GetHBITMAP(Gdiplus::Color(0, 0, 0, 0), &newaboutbmp);
