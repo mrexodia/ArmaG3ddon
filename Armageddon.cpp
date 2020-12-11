@@ -135,6 +135,7 @@ DWORD		LastUpdate = 0;
 int			iStatus = 0;
 int			numitems = 0;
 int			compilertype = 0;
+int			autorun = 0;
 char		isep[80] = "==========================================";
 char		ibuf[80] = { 0 };
 char		lbuf[80] = { 0 };
@@ -4142,7 +4143,12 @@ void CreateDump(HANDLE thisProcess, int dumparmvm)
 	char	*pComma = 0;
 
 	// Create a dumped exe file
-	if (PutFileName((LPCSTR)savebuffer))
+	if (autorun)
+	{
+		char *base = strrchr(buffer, '\\');
+		StringCchPrintf(savebuffer, MAX_PATH, "%.*s\\dump.exe", base - buffer, buffer);
+	}
+	else if (PutFileName((LPCSTR)savebuffer))
 	{
 		// continue
 	}
@@ -4388,6 +4394,8 @@ void CreateDump(HANDLE thisProcess, int dumparmvm)
 			IRretn = DoSearchAndRebuildImports(DebugEv.dwProcessId);
 		}
 	}
+	if (autorun && IRretn == 0)
+		autorun = 2;
 	LogItem("Rebuilding Imports completed");
 	LogItem("Return code: %X", IRretn);
 	LogItem("%s", IRwarn);
@@ -7230,6 +7238,7 @@ void InitializeVariables(void)
 	LastUpdate = 0;
 	numitems = 0;
 	compilertype = 0;
+	autorun = 0;
 	memset(buffer, 0, sizeof(MAX_PATH));
 	memset(savebuffer, 0, sizeof(MAX_PATH));
 	memset(inibuffer, 0, sizeof(MAX_PATH));
@@ -9486,6 +9495,7 @@ unsigned __stdcall RunExe(void *)
 														{
 															sprintf(d, "Warning OEP: %p\n"
 																"is in 2nd text section!!\n", OEPDelphiVAddress);
+															autorun = 0;
 														}
 														else
 														{
@@ -9495,6 +9505,7 @@ unsigned __stdcall RunExe(void *)
 													}
 													else
 													{
+														autorun = 0;
 														sprintf(d, "Warning: OEP call return VA: %p\n"
 															"is not from Armadillo VM!!\n", dwoepcall);
 														if (isdll)
@@ -9588,7 +9599,7 @@ unsigned __stdcall RunExe(void *)
 														"%s\n"
 														"%s", c,
 														OEPVAddress, OEPRVAddress, d, e);
-													if (MessageBox(NULL, (LPCSTR)b, "Ready to dump!", MB_OKCANCEL + MB_SYSTEMMODAL + MB_ICONINFORMATION) == IDCANCEL)
+													if (!autorun && MessageBox(NULL, (LPCSTR)b, "Ready to dump!", MB_OKCANCEL + MB_SYSTEMMODAL + MB_ICONINFORMATION) == IDCANCEL)
 													{
 														goto CHECK;
 													}
@@ -10933,6 +10944,8 @@ unsigned __stdcall RunExe(void *)
 	FreePESecMemory();
 	FreeVirtualMemory();
 	FreePEMemory();
+	if (autorun == 2)
+		PostMessage(hwndDlgA, WM_CLOSE, 0, 0);
 	return 0;
 }
 // function to scale a design that assumes 96-DPI pixels
@@ -10959,6 +10972,12 @@ int APIENTRY WinMain(HINSTANCE hinst, HINSTANCE hinstPrev, LPSTR lpCmdLine, int 
 	cc.dwSize = sizeof(cc);
 	cc.dwICC = 0xffffffff;
 	InitCommonControlsEx(&cc);
+
+	if (*lpCmdLine)
+	{
+		GetFullPathName(lpCmdLine, MAX_PATH, buffer, NULL);
+		autorun = 1;
+	}
 
 	DialogBox(hinst, (LPCSTR)MAKEINTRESOURCE(IDD_MAINDIALOG), hwndMain, (DLGPROC)DialogProc);
 	return 0;
@@ -11455,6 +11474,15 @@ LRESULT CALLBACK DialogProc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 		EnableWindow(hwnd07, FALSE);
 		EnableWindow(hwnd15, FALSE);
 		EnableWindow(hwnd08, TRUE);
+
+		if (autorun)
+		{
+			checkminimizesize = TRUE;
+			checkbypass2ndtext = TRUE;
+			CheckDlgButton(hwndDlg, IDC_MINIMIZE, BST_CHECKED);
+			CheckDlgButton(hwndDlg, IDC_BYPASS2NDTEXT, BST_CHECKED);
+			PostMessage(hwndDlg, WM_COMMAND, (WPARAM)IDC_OPEN, NULL);
+		}
 	}
 		return TRUE;
 
@@ -11752,7 +11780,7 @@ LRESULT CALLBACK DialogProc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 					}
 				}
 			}
-			if (GetFileName((LPCSTR)buffer))
+			if (autorun || GetFileName((LPCSTR)buffer))
 			{
 				hThread = (HANDLE)_beginthreadex(NULL, 0, &RunExe, NULL, 0, &dwThreadid);
 				if (!hThread)
