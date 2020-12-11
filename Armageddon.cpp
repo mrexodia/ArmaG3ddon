@@ -11333,6 +11333,7 @@ LRESULT CALLBACK DialogProc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 		lvc.mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM;
 		lvc.fmt = LVCFMT_LEFT;
 		lvc.cx = Rect.right - Rect.left;	//  Make bar width of window
+		lvc.cx -= GetSystemMetrics(SM_CXVSCROLL);	// less scrollbar
 		lvc.pszText = (LPSTR)"";
 		lvc.iSubItem = 0;                   //  Add display column (for Report View)
 		ListView_InsertColumn(hwndIDLISTVIEW, 0, &lvc);
