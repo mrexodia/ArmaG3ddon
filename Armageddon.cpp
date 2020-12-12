@@ -11042,8 +11042,8 @@ LRESULT CALLBACK CommandProc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lPara
 /* About dialog function */
 LRESULT CALLBACK AboutProc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-	char aboutbuf[2048] = "ArmaGeddon V2.2 (final) - ARTeam\n"
-		"Release - November 2014\n"
+	char aboutbuf[2048] = "ArmaGeddon V2.3 (final) - ARTeam\n"
+		"Release - December 2020\n"
 		"CondZero: Contributing editor\n"
 		"SSlEvIN: GFX support\n"
 		"Ghandi: Dll Loader.exe (dll support) +\n"
