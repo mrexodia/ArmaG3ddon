@@ -376,6 +376,7 @@ BOOL		onetime = FALSE;
 BOOL		copymem2 = FALSE;
 BOOL		traceon = TRUE;
 BOOL		bexitprocess = FALSE;
+BOOL		bcGuardText = FALSE;
 BOOL		bcGuardPage = FALSE;
 BOOL		bGuardPage = FALSE;
 BOOL		vadone = FALSE;
@@ -7378,6 +7379,7 @@ void InitializeVariables(void)
 	copymem2 = FALSE;
 	traceon = TRUE;
 	bexitprocess = FALSE;
+	bcGuardText = FALSE;
 	bcGuardPage = FALSE;
 	bGuardPage = FALSE;
 	vadone = FALSE;
@@ -8941,6 +8943,7 @@ unsigned __stdcall RunExe(void *)
 																		breaknow = TRUE;
 																		break;
 																	}
+																	bcGuardText = TRUE;
 																	bcGuardPage = TRUE;
 																	// Set a SWBP on CreateFileA address
 																	if (!WriteProcessMemory(childhProcess, (LPVOID)SWBPExceptionAddress[2], &replbyte[2],
@@ -9319,6 +9322,10 @@ unsigned __stdcall RunExe(void *)
 												CMeventaddress = CebugEv.u.Exception.ExceptionRecord.ExceptionAddress;
 												if (bcGuardPage)
 												{
+													// PAGE_GUARD on .text may have been removed, put it back.
+													if (bcGuardText)
+														VirtualProtectEx(childhProcess, (LPVOID)PESectionAddress,
+															PESectionSize, PEGuardProtect, &PEOldProtect);
 													bcGuardPage = FALSE;
 												}
 											CHECKFOROEP:
