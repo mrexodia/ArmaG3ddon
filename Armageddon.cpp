@@ -11309,7 +11309,8 @@ LRESULT CALLBACK DialogProc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 		{
 			hwndMain = GetDesktopWindow();
 		}
-		GetCurrentDirectory(MAX_PATH, dbuffer);
+		GetModuleFileName(NULL, dbuffer, MAX_PATH);
+		*strrchr(dbuffer, '\\') = '\0';
 		// Global dialog handle
 		hwndDlgA = hwndDlg;
 		// Load our Icons for the main dialog box
@@ -11874,8 +11875,7 @@ LRESULT CALLBACK DialogProc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM lParam
 		case IDC_HELP:
 		{
 			TCHAR  buffer[BUFSIZE] = TEXT("");
-			strcpy((char *)&buffer, (char *)&dbuffer);
-			strcat((char *)&buffer, "\\ArmaGeddon.chm");
+			sprintf(buffer, "%s\\ArmaGeddon.chm", dbuffer);
 			HINSTANCE hinsts = ShellExecute(hwndDlg, "Open", buffer, NULL, NULL, SW_SHOWNORMAL);
 			if ((int)hinsts == ERROR_FILE_NOT_FOUND)
 			{
